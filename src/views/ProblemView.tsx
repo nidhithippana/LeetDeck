@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Play, RotateCcw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Play, RotateCcw, AlignLeft } from 'lucide-react';
 import ProblemPrompt from '../components/ProblemPrompt';
-import CodeEditor from '../components/CodeEditor';
+import CodeEditor, { type CodeEditorHandle } from '../components/CodeEditor';
 import TestResults from '../components/TestResults';
 import RatingPanel from '../components/RatingPanel';
 import SolutionsPanel from '../components/SolutionsPanel';
@@ -73,6 +73,9 @@ export default function ProblemView({
   );
   const [result, setResult] = useState<TestRunResult | null>(null);
   const [running, setRunning] = useState(false);
+  const editorRef = useRef<CodeEditorHandle>(null);
+
+  const handleFormat = () => editorRef.current?.format();
 
   // Reset draft + result when language or problem changes.
   useEffect(() => {
@@ -181,6 +184,13 @@ export default function ProblemView({
             </select>
             <div className="flex items-center gap-1.5">
               <button
+                onClick={handleFormat}
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                title="Format code (⇧⌘F)"
+              >
+                <AlignLeft size={12} /> Format
+              </button>
+              <button
                 onClick={handleReset}
                 className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                 title="Reset to starter code"
@@ -203,7 +213,7 @@ export default function ProblemView({
           </div>
 
           <div className="min-h-0 flex-1 p-2">
-            <CodeEditor value={code} onChange={setCode} language={language} />
+            <CodeEditor ref={editorRef} value={code} onChange={setCode} language={language} />
           </div>
 
           <div className="max-h-[55%] space-y-3 overflow-y-auto border-t border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
