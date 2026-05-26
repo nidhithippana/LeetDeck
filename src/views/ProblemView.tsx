@@ -75,7 +75,9 @@ export default function ProblemView({
   const [running, setRunning] = useState(false);
   const editorRef = useRef<CodeEditorHandle>(null);
 
-  const handleFormat = () => editorRef.current?.format();
+  const handleFormat = () => {
+    void editorRef.current?.format();
+  };
 
   // Reset draft + result when language or problem changes.
   useEffect(() => {

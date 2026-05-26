@@ -7,6 +7,7 @@ import type { Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { selectAll, indentSelection, indentMore, indentLess } from '@codemirror/commands';
 import type { Language } from '../types';
+import { formatCode } from '../lib/format';
 
 type Props = {
   value: string;
@@ -14,10 +15,9 @@ type Props = {
   language: Language;
 };
 
-/** Imperative handle exposed via ref — lets parents trigger format programmatically. */
 export type CodeEditorHandle = {
-  /** Re-indents the entire document using the active language's indentation rules. */
-  format: () => void;
+  /** Async format. JS/TS run through Prettier; Python falls back to indent-only. */
+  format: () => Promise<void>;
 };
 
 function languageExtension(lang: Language): Extension {
@@ -34,29 +34,20 @@ const fillHeightTheme = EditorView.theme({
   '&.cm-focused': { outline: 'none' },
 });
 
-/**
- * Format the entire document using the active language's indent rules.
- * Works because `selectAll` then `indentSelection` re-applies the language's
- * indentation strategy to every line.
- */
-function formatDocument(view: EditorView): boolean {
+/** Lightweight indent-only fallback for Python (or on Prettier error). */
+function reindentOnly(view: EditorView): void {
   selectAll(view);
   indentSelection(view);
-  // Collapse the selection back to the original cursor — selecting-all is
-  // visually disruptive, and the user just wanted clean indentation.
   view.dispatch({ selection: { anchor: view.state.selection.main.from } });
-  return true;
 }
 
-const formatKeymap = keymap.of([
-  // VS Code-style: Cmd+Shift+F on Mac, Ctrl+Shift+F on Win/Linux
-  { key: 'Mod-Shift-f', preventDefault: true, run: formatDocument },
-  // Also bind Tab / Shift+Tab to indent/dedent the current selection
-  // (CodeMirror's defaults already do this, but being explicit guards
-  // against future basicSetup changes.)
-  { key: 'Tab', run: indentMore },
-  { key: 'Shift-Tab', run: indentLess },
-]);
+/** Replace the entire document with new content, preserving cursor at the top. */
+function replaceAll(view: EditorView, next: string): void {
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: next },
+    selection: { anchor: 0 },
+  });
+}
 
 const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEditor(
   { value, onChange, language },
@@ -64,19 +55,53 @@ const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEditor(
 ) {
   const cmRef = useRef<ReactCodeMirrorRef | null>(null);
 
+  const doFormat = async (): Promise<void> => {
+    const view = cmRef.current?.view;
+    if (!view) return;
+    const current = view.state.doc.toString();
+    const result = await formatCode(current, language);
+    if (result.ok) {
+      // Only replace if the formatted output actually differs — avoids a no-op
+      // history entry and a cursor jump on already-formatted code.
+      if (result.formatted !== current) replaceAll(view, result.formatted);
+    } else {
+      // Unsupported (Python) or syntax error → fall back to indent-only.
+      reindentOnly(view);
+    }
+  };
+
+  // Inside the editor: Cmd+Shift+F triggers format. We need a synchronous
+  // wrapper because CodeMirror's keymap expects a sync `run` returning boolean.
+  const formatKeymap = useMemo(
+    () =>
+      keymap.of([
+        {
+          key: 'Mod-Shift-f',
+          preventDefault: true,
+          run: () => {
+            void doFormat();
+            return true;
+          },
+        },
+        { key: 'Tab', run: indentMore },
+        { key: 'Shift-Tab', run: indentLess },
+      ]),
+    // doFormat is recreated each render; the keymap captures the latest via closure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
   const extensions = useMemo<Extension[]>(
     () => [languageExtension(language), fillHeightTheme, formatKeymap],
-    [language]
+    [language, formatKeymap]
   );
 
   useImperativeHandle(
     ref,
     () => ({
-      format: () => {
-        const view = cmRef.current?.view;
-        if (view) formatDocument(view);
-      },
+      format: doFormat,
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
