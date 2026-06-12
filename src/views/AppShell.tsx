@@ -1,46 +1,101 @@
-import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Loader2, PanelLeftOpen } from 'lucide-react';
-import TodayView from './TodayView';
-import ProblemView from './ProblemView';
-import BrowseSidebar from '../components/BrowseSidebar';
-import SettingsModal from '../components/SettingsModal';
-import { useSession } from '../auth/useSession';
-import { useSrsState } from '../srs/useSrsState';
-import { updateProfile } from '../srs/storage';
-import { PROBLEMS_BY_ID } from '../data/problems';
-import type { Rating } from '../types';
+import { useCallback, useEffect, useState } from "react";
+import { AlertTriangle, Loader2, PanelLeftOpen } from "lucide-react";
+import TodayView from "./TodayView";
+import ProblemView from "./ProblemView";
+import SystemDesignView from "./SystemDesignView";
+import SystemDesignCardView from "./SystemDesignCardView";
+import SystemDesignInterviewView from "./SystemDesignInterviewView";
+import SystemDesignInterviewSessionView from "./SystemDesignInterviewSessionView";
+import BrowseSidebar, { type AppSection } from "../components/BrowseSidebar";
+import SettingsModal from "../components/SettingsModal";
+import { useSession } from "../auth/useSession";
+import { useSrsState } from "../srs/useSrsState";
+import { useSdSrs } from "../srs/useSdSrs";
+import { useInterviewHistory } from "../srs/useInterviewHistory";
+import { updateProfile } from "../srs/storage";
+import { PROBLEMS_BY_ID } from "../data/problems";
+import type { Rating } from "../types";
 
-type Route =
-  | { name: 'today' }
-  | { name: 'problem'; problemId: string; kind: 'new' | 'review' | 'practice' };
+type LcRoute =
+  | { name: "today" }
+  | { name: "problem"; problemId: string; kind: "new" | "review" | "practice" };
+
+type SdRoute =
+  | { name: "sd-today" }
+  | { name: "sd-review"; queue: string[] }
+  | { name: "sd-interview" }
+  | { name: "sd-interview-session"; questionId: string };
+
+type Route = LcRoute | SdRoute;
 
 export default function AppShell() {
   const { user, signOut } = useSession();
   const srs = useSrsState();
+  const interviewHistory = useInterviewHistory();
+  const sdSrs = useSdSrs();
 
-  const [route, setRoute] = useState<Route>({ name: 'today' });
+  const [section, setSection] = useState<AppSection>(() => {
+    if (typeof window === "undefined") return "leetcode";
+    return (
+      (window.localStorage.getItem("leetdeck.section") as AppSection | null) ??
+      "leetcode"
+    );
+  });
+
+  const [route, setRoute] = useState<Route>(() =>
+    section === "system-design" ? { name: "sd-today" } : { name: "today" }
+  );
+
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem('leetdeck.sidebar.collapsed') === 'true';
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("leetdeck.sidebar.collapsed") === "true";
   });
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('leetdeck.sidebar.collapsed', String(sidebarCollapsed));
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      "leetdeck.sidebar.collapsed",
+      String(sidebarCollapsed)
+    );
   }, [sidebarCollapsed]);
 
-  const goToday = useCallback(() => setRoute({ name: 'today' }), []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("leetdeck.section", section);
+  }, [section]);
+
+  const handleSectionChange = useCallback((s: AppSection) => {
+    setSection(s);
+    setRoute(s === "system-design" ? { name: "sd-today" } : { name: "today" });
+  }, []);
+
+  const goToday = useCallback(() => setRoute({ name: "today" }), []);
+  const goSDToday = useCallback(() => setRoute({ name: "sd-today" }), []);
+  const goSDInterview = useCallback(() => setRoute({ name: "sd-interview" }), []);
+  const openSDInterviewSession = useCallback(
+    (questionId: string) => setRoute({ name: "sd-interview-session", questionId }),
+    []
+  );
+
   const openProblem = useCallback(
-    (problemId: string, kind: 'new' | 'review') =>
-      setRoute({ name: 'problem', problemId, kind }),
+    (problemId: string, kind: "new" | "review") =>
+      setRoute({ name: "problem", problemId, kind }),
     []
   );
   const openPractice = useCallback(
-    (problemId: string) => setRoute({ name: 'problem', problemId, kind: 'practice' }),
+    (problemId: string) =>
+      setRoute({ name: "problem", problemId, kind: "practice" }),
     []
   );
   const openSettings = useCallback(() => setSettingsOpen(true), []);
+
+  const handleStartSDReview = useCallback(() => {
+    const queue = sdSrs.dueCards;
+    if (queue.length > 0) {
+      setRoute({ name: "sd-review", queue });
+    }
+  }, [sdSrs.dueCards]);
 
   if (!user) return null;
 
@@ -60,7 +115,7 @@ export default function AppShell() {
             <AlertTriangle size={18} className="mt-0.5 shrink-0" />
             <div>
               <div className="font-semibold">Couldn't load your data</div>
-              <div className="mt-1 text-sm">{srs.error ?? 'Unknown error'}</div>
+              <div className="mt-1 text-sm">{srs.error ?? "Unknown error"}</div>
               <button
                 onClick={() => void srs.refresh()}
                 className="mt-3 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
@@ -74,7 +129,7 @@ export default function AppShell() {
     );
   }
 
-  const activeProblemId = route.name === 'problem' ? route.problemId : null;
+  const activeProblemId = route.name === "problem" ? route.problemId : null;
 
   const handleSaveSettings = async (updates: {
     newPerDay: number;
@@ -87,7 +142,49 @@ export default function AppShell() {
   };
 
   let content: React.ReactNode;
-  if (route.name === 'today') {
+
+  if (route.name === "sd-today") {
+    content = (
+      <SystemDesignView
+        sdSrs={sdSrs}
+        user={user}
+        onStartReview={handleStartSDReview}
+        onSignOut={signOut}
+        onOpenSettings={openSettings}
+      />
+    );
+  } else if (route.name === "sd-review") {
+    content = (
+      <SystemDesignCardView
+        queue={route.queue}
+        sdSrs={sdSrs}
+        onBack={goSDToday}
+        onDone={goSDToday}
+      />
+    );
+  } else if (route.name === "sd-interview") {
+    content = (
+      <SystemDesignInterviewView
+        user={user}
+        onBack={goSDToday}
+        onStartSession={openSDInterviewSession}
+        onSignOut={signOut}
+        onOpenSettings={openSettings}
+        history={interviewHistory.history}
+      />
+    );
+  } else if (route.name === "sd-interview-session") {
+    content = (
+      <SystemDesignInterviewSessionView
+        questionId={route.questionId}
+        onBack={goSDInterview}
+        onMarkCompleted={(score) =>
+          interviewHistory.markCompleted(route.questionId, score)
+        }
+        onOpenSettings={openSettings}
+      />
+    );
+  } else if (route.name === "today") {
     content = (
       <TodayView
         data={srs.data}
@@ -104,7 +201,7 @@ export default function AppShell() {
       return null;
     }
     const handleRate = async (rating: Rating) => {
-      if (route.kind === 'practice') return;
+      if (route.kind === "practice") return;
       await srs.rateProblem(problem.id, rating, route.kind);
       goToday();
     };
@@ -144,6 +241,13 @@ export default function AppShell() {
           onOpenProblem={openPractice}
           onGoHome={goToday}
           onCollapse={() => setSidebarCollapsed(true)}
+          section={section}
+          onSectionChange={handleSectionChange}
+          sdDueCount={sdSrs.dueCards.length}
+          sdTopicStats={sdSrs.topicStats}
+          onGoSDHome={goSDToday}
+          onStartSDReview={handleStartSDReview}
+          onGoSDInterview={goSDInterview}
         />
       )}
       <div className="min-w-0 flex-1">{content}</div>
@@ -151,6 +255,8 @@ export default function AppShell() {
       <SettingsModal
         open={settingsOpen}
         profile={srs.data.profile}
+        sdNewPerDay={sdSrs.dailyNewLimit}
+        onSdNewPerDayChange={sdSrs.setDailyNewLimit}
         onClose={() => setSettingsOpen(false)}
         onSave={handleSaveSettings}
       />

@@ -1,13 +1,18 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
-import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
-import { javascript } from '@codemirror/lang-javascript';
-import { python } from '@codemirror/lang-python';
-import { oneDark } from '@codemirror/theme-one-dark';
-import type { Extension } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
-import { selectAll, indentSelection, indentMore, indentLess } from '@codemirror/commands';
-import type { Language } from '../types';
-import { formatCode } from '../lib/format';
+import { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
+import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import { javascript } from "@codemirror/lang-javascript";
+import { python } from "@codemirror/lang-python";
+import { oneDark } from "@codemirror/theme-one-dark";
+import type { Extension } from "@codemirror/state";
+import { EditorView, keymap } from "@codemirror/view";
+import {
+  selectAll,
+  indentSelection,
+  indentMore,
+  indentLess,
+} from "@codemirror/commands";
+import type { Language } from "../types";
+import { formatCode } from "../lib/format";
 
 type Props = {
   value: string;
@@ -18,20 +23,29 @@ type Props = {
 export type CodeEditorHandle = {
   /** Async format. JS/TS run through Prettier; Python falls back to indent-only. */
   format: () => Promise<void>;
+  scrollUp: () => void;
+  scrollDown: () => void;
 };
 
 function languageExtension(lang: Language): Extension {
-  if (lang === 'python') return python();
-  if (lang === 'typescript') return javascript({ typescript: true });
+  if (lang === "python") return python();
+  if (lang === "typescript") return javascript({ typescript: true });
   return javascript();
 }
 
 const fillHeightTheme = EditorView.theme({
-  '&': { height: '100%', fontSize: '13px' },
-  '.cm-scroller': { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' },
-  '.cm-content': { padding: '10px 0' },
-  '.cm-gutters': { backgroundColor: '#0b1224', borderRight: '1px solid rgba(148, 163, 184, 0.15)' },
-  '&.cm-focused': { outline: 'none' },
+  "&": { height: "100%", fontSize: "13px" },
+  ".cm-scroller": {
+    fontFamily:
+      "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    overflow: "auto",
+  },
+  ".cm-content": { padding: "10px 0" },
+  ".cm-gutters": {
+    backgroundColor: "#0b1224",
+    borderRight: "1px solid rgba(148, 163, 184, 0.15)",
+  },
+  "&.cm-focused": { outline: "none" },
 });
 
 /** Lightweight indent-only fallback for Python (or on Prettier error). */
@@ -76,15 +90,15 @@ const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEditor(
     () =>
       keymap.of([
         {
-          key: 'Mod-Shift-f',
+          key: "Mod-Shift-f",
           preventDefault: true,
           run: () => {
             void doFormat();
             return true;
           },
         },
-        { key: 'Tab', run: indentMore },
-        { key: 'Shift-Tab', run: indentLess },
+        { key: "Tab", run: indentMore },
+        { key: "Shift-Tab", run: indentLess },
       ]),
     // doFormat is recreated each render; the keymap captures the latest via closure.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,17 +110,31 @@ const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEditor(
     [language, formatKeymap]
   );
 
+  const SCROLL_AMOUNT = 120;
+
+  const scrollUp = () => {
+    const scroller = cmRef.current?.editor?.querySelector(".cm-scroller");
+    if (scroller) scroller.scrollTop -= SCROLL_AMOUNT;
+  };
+
+  const scrollDown = () => {
+    const scroller = cmRef.current?.editor?.querySelector(".cm-scroller");
+    if (scroller) scroller.scrollTop += SCROLL_AMOUNT;
+  };
+
   useImperativeHandle(
     ref,
     () => ({
       format: doFormat,
+      scrollUp,
+      scrollDown,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
   return (
-    <div className="h-full w-full overflow-hidden rounded-md border border-slate-700 bg-[#282c34]">
+    <div className="flex h-full w-full flex-col overflow-hidden rounded-md border border-slate-700 bg-[#282c34]">
       <CodeMirror
         ref={cmRef}
         value={value}
@@ -114,6 +142,7 @@ const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEditor(
         extensions={extensions}
         theme={oneDark}
         height="100%"
+        style={{ flex: 1, minHeight: 0 }}
         basicSetup={{
           lineNumbers: true,
           highlightActiveLine: true,

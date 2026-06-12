@@ -1,47 +1,58 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Play, RotateCcw, AlignLeft } from 'lucide-react';
-import ProblemPrompt from '../components/ProblemPrompt';
-import CodeEditor, { type CodeEditorHandle } from '../components/CodeEditor';
-import TestResults from '../components/TestResults';
-import RatingPanel from '../components/RatingPanel';
-import SolutionsPanel from '../components/SolutionsPanel';
-import SolutionAnalysis from '../components/SolutionAnalysis';
-import HintsPanel from '../components/HintsPanel';
-import MarkFamiliarityPanel from '../components/MarkFamiliarityPanel';
-import UserMenu from '../components/UserMenu';
-import { runTests } from '../runner/runTests';
-import { LANGUAGES, LANGUAGE_LABEL } from '../types';
-import { usePageTitle } from '../lib/usePageTitle';
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  Play,
+  RotateCcw,
+  AlignLeft,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
+import ProblemPrompt from "../components/ProblemPrompt";
+import CodeEditor, { type CodeEditorHandle } from "../components/CodeEditor";
+import TestResults from "../components/TestResults";
+import RatingPanel from "../components/RatingPanel";
+import SolutionsPanel from "../components/SolutionsPanel";
+import SolutionAnalysis from "../components/SolutionAnalysis";
+import HintsPanel from "../components/HintsPanel";
+import MarkFamiliarityPanel from "../components/MarkFamiliarityPanel";
+import UserMenu from "../components/UserMenu";
+import { runTests } from "../runner/runTests";
+import { LANGUAGES, LANGUAGE_LABEL } from "../types";
+import { usePageTitle } from "../lib/usePageTitle";
 import type {
   CardState,
   Language,
   Problem,
   Rating,
   TestRunResult,
-} from '../types';
-import type { User } from '@supabase/supabase-js';
+} from "../types";
+import type { User } from "@supabase/supabase-js";
 
 const draftKey = (problemId: string, lang: Language) =>
   `leetdeck.draft.${problemId}.${lang}`;
 
-const LANG_PREF_KEY = 'leetdeck.lang';
+const LANG_PREF_KEY = "leetdeck.lang";
 
-function loadDraft(problemId: string, lang: Language, fallback: string): string {
-  if (typeof window === 'undefined') return fallback;
+function loadDraft(
+  problemId: string,
+  lang: Language,
+  fallback: string
+): string {
+  if (typeof window === "undefined") return fallback;
   return window.localStorage.getItem(draftKey(problemId, lang)) ?? fallback;
 }
 
 function loadLangPref(): Language {
-  if (typeof window === 'undefined') return 'javascript';
+  if (typeof window === "undefined") return "javascript";
   const v = window.localStorage.getItem(LANG_PREF_KEY) as Language | null;
-  return v && LANGUAGES.includes(v) ? v : 'javascript';
+  return v && LANGUAGES.includes(v) ? v : "javascript";
 }
 
 type Props = {
   problem: Problem;
   /** 'new'/'review' come from the daily queue and show the rating panel.
    *  'practice' comes from the browse sidebar — free practice, no rating, no SRS impact. */
-  kind: 'new' | 'review' | 'practice';
+  kind: "new" | "review" | "practice";
   card: CardState | undefined;
   user: User;
   onBack: () => void;
@@ -79,6 +90,9 @@ export default function ProblemView({
     void editorRef.current?.format();
   };
 
+  const handleScrollUp = () => editorRef.current?.scrollUp();
+  const handleScrollDown = () => editorRef.current?.scrollDown();
+
   // Reset draft + result when language or problem changes.
   useEffect(() => {
     setCode(loadDraft(problem.id, language, langConfig.starterCode));
@@ -86,12 +100,12 @@ export default function ProblemView({
   }, [problem.id, language, langConfig.starterCode]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     window.localStorage.setItem(draftKey(problem.id, language), code);
   }, [code, problem.id, language]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     window.localStorage.setItem(LANG_PREF_KEY, language);
   }, [language]);
 
@@ -113,7 +127,9 @@ export default function ProblemView({
   };
 
   const handleReset = () => {
-    if (window.confirm('Reset to starter code? Your current draft will be lost.')) {
+    if (
+      window.confirm("Reset to starter code? Your current draft will be lost.")
+    ) {
       setCode(langConfig.starterCode);
       setResult(null);
     }
@@ -137,27 +153,41 @@ export default function ProblemView({
           <div className="flex items-center gap-2">
             <span
               className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                kind === 'new'
-                  ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
-                  : kind === 'review'
-                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-                  : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                kind === "new"
+                  ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"
+                  : kind === "review"
+                    ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                    : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
               }`}
             >
-              {kind === 'new' ? 'New' : kind === 'review' ? 'Review' : 'Practice'}
+              {kind === "new"
+                ? "New"
+                : kind === "review"
+                  ? "Review"
+                  : "Practice"}
             </span>
-            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{problem.title}</span>
+            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              {problem.title}
+            </span>
           </div>
-          <UserMenu user={user} onSignOut={onSignOut} onOpenSettings={onOpenSettings} />
+          <UserMenu
+            user={user}
+            onSignOut={onSignOut}
+            onOpenSettings={onOpenSettings}
+          />
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
         <section className="w-1/2 overflow-y-auto border-r border-slate-200 bg-white px-6 py-6 dark:border-slate-800 dark:bg-slate-900">
           <ProblemPrompt problem={problem} />
-          {kind === 'practice' && onMark && (
+          {kind === "practice" && onMark && (
             <div className="mt-6">
-              <MarkFamiliarityPanel problemId={problem.id} card={card} onMark={onMark} />
+              <MarkFamiliarityPanel
+                problemId={problem.id}
+                card={card}
+                onMark={onMark}
+              />
             </div>
           )}
           <div className="mt-6">
@@ -186,6 +216,21 @@ export default function ProblemView({
             </select>
             <div className="flex items-center gap-1.5">
               <button
+                onClick={handleScrollUp}
+                className="flex items-center rounded-md px-1.5 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                title="Scroll editor up"
+              >
+                <ChevronUp size={14} />
+              </button>
+              <button
+                onClick={handleScrollDown}
+                className="flex items-center rounded-md px-1.5 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                title="Scroll editor down"
+              >
+                <ChevronDown size={14} />
+              </button>
+              <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
+              <button
                 onClick={handleFormat}
                 className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                 title="Format code (⇧⌘F)"
@@ -206,31 +251,43 @@ export default function ProblemView({
               >
                 <Play size={12} />
                 {running
-                  ? language === 'python'
-                    ? 'Running (Python may take ~10s on first run)…'
-                    : 'Running…'
-                  : 'Run tests'}
+                  ? language === "python"
+                    ? "Running (Python may take ~10s on first run)…"
+                    : "Running…"
+                  : "Run tests"}
               </button>
             </div>
           </div>
 
           <div className="min-h-0 flex-1 p-2">
-            <CodeEditor ref={editorRef} value={code} onChange={setCode} language={language} />
+            <CodeEditor
+              ref={editorRef}
+              value={code}
+              onChange={setCode}
+              language={language}
+            />
           </div>
 
           <div className="max-h-[55%] space-y-3 overflow-y-auto border-t border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
             <TestResults result={result} running={running} />
             {allPassed && (
-              <SolutionAnalysis problem={problem} language={language} code={code} />
+              <SolutionAnalysis
+                problem={problem}
+                language={language}
+                code={code}
+              />
             )}
-            {allPassed && kind !== 'practice' && (
+            {allPassed && kind !== "practice" && (
               <RatingPanel problemId={problem.id} card={card} onRate={onRate} />
             )}
-            {allPassed && kind === 'practice' && (
+            {allPassed && kind === "practice" && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                Practice mode — your daily SRS schedule is untouched. Solve this from the{' '}
-                <strong className="font-semibold text-slate-800 dark:text-slate-200">Today</strong> queue to rate
-                and schedule the next review.
+                Practice mode — your daily SRS schedule is untouched. Solve this
+                from the{" "}
+                <strong className="font-semibold text-slate-800 dark:text-slate-200">
+                  Today
+                </strong>{" "}
+                queue to rate and schedule the next review.
               </div>
             )}
           </div>

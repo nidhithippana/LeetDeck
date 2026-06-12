@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
-import { X, Sparkles, RotateCcw, Loader2, Mail } from 'lucide-react';
+import { X, Sparkles, RotateCcw, Loader2, Mail, KeyRound, Eye, EyeOff, Layers } from 'lucide-react';
 import type { Profile } from '../types';
+import { getAIKey, saveAIKey } from '../lib/claudeReview';
 
 type Props = {
   open: boolean;
   profile: Profile;
+  sdNewPerDay: number;
+  onSdNewPerDayChange: (n: number) => void;
   onClose: () => void;
   onSave: (updates: {
     newPerDay: number;
@@ -18,6 +21,8 @@ const NEW_MIN = 0;
 const NEW_MAX = 10;
 const REVIEW_MIN = 0;
 const REVIEW_MAX = 20;
+const SD_NEW_MIN = 0;
+const SD_NEW_MAX = 30;
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => {
   const ampm = h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
@@ -32,13 +37,15 @@ function getBrowserTimezone(): string {
   }
 }
 
-export default function SettingsModal({ open, profile, onClose, onSave }: Props) {
+export default function SettingsModal({ open, profile, sdNewPerDay, onSdNewPerDayChange, onClose, onSave }: Props) {
   const [newPerDay, setNewPerDay] = useState(profile.newPerDay);
   const [reviewPerDay, setReviewPerDay] = useState(profile.reviewPerDay);
   const [reminderEnabled, setReminderEnabled] = useState(profile.reminderHour !== null);
   const [reminderHour, setReminderHour] = useState(profile.reminderHour ?? 19); // default 7 PM
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState(() => getAIKey());
+  const [showKey, setShowKey] = useState(false);
 
   const browserTz = getBrowserTimezone();
 
@@ -170,6 +177,38 @@ export default function SettingsModal({ open, profile, onClose, onSave }: Props)
             </div>
           </div>
 
+          {/* System Design new cards per day */}
+          <div className="border-t border-slate-200 pt-5 dark:border-slate-800">
+            <div className="mb-2 flex items-center justify-between">
+              <label
+                htmlFor="sd-new-per-day"
+                className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300"
+              >
+                <Layers size={14} className="text-violet-500" />
+                New SD cards per day
+              </label>
+              <span className="rounded-md bg-violet-50 px-2 py-0.5 font-mono text-sm font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                {sdNewPerDay}
+              </span>
+            </div>
+            <input
+              id="sd-new-per-day"
+              type="range"
+              min={SD_NEW_MIN}
+              max={SD_NEW_MAX}
+              value={sdNewPerDay}
+              onChange={(e) => onSdNewPerDayChange(parseInt(e.target.value, 10))}
+              className="w-full accent-violet-600"
+            />
+            <div className="mt-1 flex justify-between text-[10px] text-slate-400 dark:text-slate-500">
+              <span>{SD_NEW_MIN}</span>
+              <span>{SD_NEW_MAX}</span>
+            </div>
+            <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+              New cards are introduced in topic order. Due reviews are always shown.
+            </p>
+          </div>
+
           {/* Reminder email */}
           <div className="border-t border-slate-200 pt-5 dark:border-slate-800">
             <div className="mb-2 flex items-center justify-between">
@@ -219,10 +258,44 @@ export default function SettingsModal({ open, profile, onClose, onSave }: Props)
               </p>
             )}
           </div>
+
+          {/* AI Review API Key */}
+          <div className="border-t border-slate-200 pt-5 dark:border-slate-800">
+            <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
+              <KeyRound size={14} className="text-violet-500" />
+              AI Review (Google Gemini API key)
+            </label>
+            <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+              Used to evaluate your system design interview responses. Stored locally in your browser only.
+            </p>
+            <div className="relative">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                onBlur={() => saveAIKey(apiKey)}
+                placeholder="AIzaSy..."
+                className="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-3 pr-8 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                tabIndex={-1}
+              >
+                {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
+              </button>
+            </div>
+            {apiKey && (
+              <p className="mt-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+                Gemini key saved — used for Interview AI review.
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="mt-6 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
-          💡 Tip: 0 new + ~5 review is a good "maintenance" setting on busy days.
+          Tip: 0 new + ~5 review is a good "maintenance" setting on busy days.
         </div>
 
         {error && (
