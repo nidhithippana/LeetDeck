@@ -62,7 +62,13 @@ export function isDue(card: CardState, today = todayISO()): boolean {
 //   good  → 6 days
 //   easy  → 7 days,  ease +0.15
 //
-// Subsequent reviews:
+// Third review (repetitions == 2):
+//   again → reset to 1 day, ease -0.20, lapse++
+//   hard  → 5 days,  ease -0.15   ← completes the 1→3→5 hard ladder
+//   good  → interval × ease
+//   easy  → interval × ease × 1.3, ease +0.15
+//
+// Subsequent reviews (repetitions >= 3):
 //   again → reset to 1 day, ease -0.20, lapse++
 //   hard  → interval × 1.2,        ease -0.15
 //   good  → interval × ease
@@ -95,6 +101,11 @@ export function applyRating(
     if (rating === 'hard') interval = 3;
     else if (rating === 'easy') interval = 7;
     else interval = 6;
+  } else if (card.repetitions === 2) {
+    const base = Math.max(1, card.intervalDays);
+    if (rating === 'hard') interval = 5;
+    else if (rating === 'easy') interval = Math.round(base * card.easeFactor * 1.3);
+    else interval = Math.round(base * card.easeFactor);
   } else {
     const base = Math.max(1, card.intervalDays);
     if (rating === 'hard') interval = Math.round(base * 1.2);
