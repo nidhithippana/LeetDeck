@@ -77,6 +77,7 @@ export default function SettingsModal({ open, profile, sdNewPerDay, onSdNewPerDa
   const handleSave = async () => {
     setSaving(true);
     setError(null);
+    saveAIKey(apiKey);
     try {
       await onSave({
         newPerDay,
