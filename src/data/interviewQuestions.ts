@@ -23,19 +23,11 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
     title: 'Design a URL Shortener',
     category: 'Storage & Data',
     difficulty: 'Easy',
-    prompt: `Design a URL shortening service like bit.ly or TinyURL.
+    prompt: `Let's design Bitly.
 
-**Functional requirements:**
-- Users can submit a long URL and receive a short alias (e.g., short.ly/abc123)
-- Visiting the short URL redirects to the original URL
-- Links can optionally expire after a set time
+You know how bit.ly works — you paste in a long URL and it gives you a short link that redirects to the original. I want you to design that system.
 
-**Non-functional requirements:**
-- Reads (redirects) are 100× more frequent than writes
-- System should handle 100M new URLs per day
-- Links should redirect with sub-100ms latency globally
-
-**Discuss:** URL encoding scheme, storage, database choice, caching strategy for hot URLs, and how to handle expiration.`,
+Feel free to ask me any clarifying questions before you dive in. I'll answer them the way a real interviewer would.`,
   },
   {
     id: 'iq-pastebin',
@@ -99,20 +91,11 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
     title: 'Design Dropbox / Google Drive',
     category: 'Storage & Data',
     difficulty: 'Hard',
-    prompt: `Design a cloud file storage and sync service like Dropbox or Google Drive.
+    prompt: `Let's design Dropbox.
 
-**Functional requirements:**
-- Upload, download, and delete files up to 50GB
-- Sync files across devices automatically
-- Support shared folders
-- Keep version history
+You know what Dropbox does — you save a file on your laptop and it shows up on your phone. I want you to design the core file sync system. Think about what happens from the moment a user drops a file into their Dropbox folder to when it appears on their other devices.
 
-**Non-functional requirements:**
-- 500M users, 1B files total
-- Prioritize consistency — users should see the same files everywhere
-- Optimize bandwidth: don't re-upload unchanged file chunks
-
-**Discuss:** chunking files for delta sync, deduplication using content hashing, metadata vs. blob storage separation, synchronization protocol, conflict resolution when offline edits merge.`,
+Ask me anything you need to know before you start.`,
   },
   {
     id: 'iq-message-queue',
@@ -180,19 +163,11 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
     title: 'Design a News Feed System',
     category: 'Social & Feeds',
     difficulty: 'Medium',
-    prompt: `Design a generic social news feed system (like Facebook's feed or LinkedIn's homepage).
+    prompt: `Let's design Facebook's News Feed.
 
-**Functional requirements:**
-- Users publish posts (text, link, image)
-- Users see a ranked feed from people/pages they follow
-- Support likes, comments, shares
+When you open Facebook, you see a personalized feed of posts from your friends and pages you follow. I want you to design that system — the part that figures out what to show you and serves it up when you open the app.
 
-**Non-functional requirements:**
-- 500M daily active users
-- Feed ranking uses engagement signals (likes, recency, relationship strength)
-- Handle bursts: viral posts can get millions of interactions within minutes
-
-**Discuss:** fanout architecture, feed ranking pipeline (offline pre-computation vs. online scoring), write amplification for highly-connected users, caching strategies, and counters for likes at scale.`,
+What do you want to know before you start?`,
   },
   {
     id: 'iq-tiktok',
@@ -220,20 +195,11 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
     title: 'Design WhatsApp / Chat',
     category: 'Communication',
     difficulty: 'Medium',
-    prompt: `Design a real-time 1-on-1 and group messaging system like WhatsApp.
+    prompt: `Let's design WhatsApp.
 
-**Functional requirements:**
-- Send and receive text messages in real-time
-- Group chats (up to 1,000 members)
-- Message delivery receipts (sent / delivered / read)
-- Media sharing (images, videos)
+You use it — you send someone a message, it shows up on their phone almost immediately, even if they're halfway around the world. I want you to design the messaging system behind that. Focus on the core experience.
 
-**Non-functional requirements:**
-- 2B users, 100B messages per day
-- Messages should arrive within 500ms when both users are online
-- End-to-end delivery guarantees — no message loss
-
-**Discuss:** WebSocket connections for real-time delivery, message storage model, fan-out for group chats, offline message queuing, receipts, and how media is handled separately from message metadata.`,
+What questions do you have for me?`,
   },
   {
     id: 'iq-notification',
@@ -298,20 +264,11 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
     title: 'Design a Web Crawler',
     category: 'Infrastructure',
     difficulty: 'Medium',
-    prompt: `Design a distributed web crawler that indexes the internet for a search engine.
+    prompt: `Let's design a web crawler — the kind Google uses to discover and index pages across the internet.
 
-**Functional requirements:**
-- Start from seed URLs and recursively discover and download web pages
-- Avoid crawling the same URL twice
-- Respect robots.txt
-- Re-crawl pages periodically to keep index fresh
+The basic idea is: you start with a set of URLs, fetch those pages, find the links in them, and keep going. At Google's scale, this gets complicated fast. How would you build it?
 
-**Non-functional requirements:**
-- Must crawl 1 billion pages within a week
-- Politeness: don't overwhelm any single server
-- Storage: efficiently store and deduplicate downloaded pages
-
-**Discuss:** URL frontier (priority queue), distributed deduplication (Bloom filter), DNS caching, politeness policy (per-domain rate limits), content deduplication (SimHash), parsing and link extraction pipeline, and re-crawl scheduling.`,
+Feel free to ask me clarifying questions first.`,
   },
   {
     id: 'iq-api-gateway',
@@ -438,19 +395,11 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
     title: 'Design Uber / Ride Sharing',
     category: 'Maps & Location',
     difficulty: 'Hard',
-    prompt: `Design a ride-sharing platform like Uber or Lyft.
+    prompt: `Let's design Uber.
 
-**Functional requirements:**
-- Rider requests a ride; system matches them with a nearby driver
-- Driver's location is tracked in real-time during the trip
-- Surge pricing based on supply/demand ratio
+The core thing Uber does: someone opens the app, requests a ride, and gets matched with a nearby driver. The driver's location is constantly updating, the match needs to feel instant, and this is happening across dozens of cities at once. How would you design this?
 
-**Non-functional requirements:**
-- 5M trips per day across many cities
-- Match must happen within 5 seconds
-- Driver location updates every 5 seconds
-
-**Discuss:** geohashing for efficient nearby driver lookup, real-time location update ingestion (WebSocket or HTTP polling), the matching algorithm (radius expansion if no driver found), the trip state machine, surge pricing calculation, and how to handle the system in city-specific geographic regions.`,
+Ask me what you need to know before you start.`,
   },
   {
     id: 'iq-google-maps',
@@ -556,20 +505,11 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
     title: 'Design an Ad Click Aggregator',
     category: 'E-Commerce & Finance',
     difficulty: 'Hard',
-    prompt: `Design a real-time ad click aggregation system for a digital advertising platform.
+    prompt: `Let's say you're on the ads infrastructure team at a company like Facebook or Google.
 
-**Functional requirements:**
-- Record every ad impression and click event
-- Provide real-time (< 1 min delay) aggregated metrics: clicks per ad per minute
-- Support querying click counts for any (ad_id, time_window)
-- Detect click fraud
+Advertisers are paying to show their ads, and they need to know how those ads are performing — how many times they were clicked, when, and by whom. Your job is to design the system that captures ad click events and makes that data available to advertisers. How would you approach it?
 
-**Non-functional requirements:**
-- 10 billion click events per day
-- Aggregate queries return in < 1 second
-- Data must be accurate enough for billing (< 0.01% error)
-
-**Discuss:** event ingestion via Kafka, streaming aggregation (Apache Flink / Spark Streaming) computing rolling windows, a time-series store for pre-aggregated results (Druid, ClickHouse), lambda architecture vs. kappa architecture, late-event handling (out-of-order events and watermarks), and fraud detection signals.`,
+What do you want to clarify before diving in?`,
   },
   {
     id: 'iq-stock-trading',
@@ -597,44 +537,22 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
     title: 'Design Ticketmaster',
     category: 'E-Commerce & Finance',
     difficulty: 'Medium',
-    prompt: `Design an online ticket booking platform for live events like Ticketmaster or StubHub.
+    prompt: `Let's design Ticketmaster.
 
-**Functional requirements:**
-- Users can browse events by city, date, and category
-- View an interactive seat map and select available seats
-- Reserve and purchase tickets (with payment)
-- Receive ticket confirmation (PDF/QR code)
-- Sellers can list events and set seat pricing tiers
+People use it to buy tickets to concerts, sports games, theatre — you pick your seats and check out. Think about what happens when a really popular show goes on sale and everyone tries to buy at the same time. How would you design the system?
 
-**Non-functional requirements:**
-- 50M users, 500K events per year
-- High concurrency during "hot drops" (e.g., Taylor Swift): 100K concurrent users trying to buy the same seats in the first 60 seconds
-- No double booking — two users cannot buy the same seat
-- 99.99% availability during peak events
-
-**Discuss:** seat reservation locking strategy (optimistic vs. pessimistic, short-lived holds), the booking state machine (browsing → held → payment → confirmed → expired), handling the thundering herd during hot drops (virtual waiting room queue, token-based access), seat map storage and real-time availability, payment integration, and ticket delivery via barcode/QR.`,
+Ask me whatever you need before you start.`,
   },
   {
     id: 'iq-leetcode',
     title: 'Design an Online Code Judge',
     category: 'Infrastructure',
     difficulty: 'Medium',
-    prompt: `Design an online coding practice platform like LeetCode or HackerRank.
+    prompt: `Let's design LeetCode.
 
-**Functional requirements:**
-- Users browse problems by difficulty, topic, and company tag
-- Write and submit code in multiple languages (Python, Java, C++, JavaScript)
-- System runs code against hidden test cases and returns verdict (Accepted, Wrong Answer, Time Limit Exceeded, Runtime Error)
-- Track which problems a user has solved; show global and contest rankings
-- After solving, users can view editorials and discuss solutions
+You know the site — you pick a coding problem, write your solution in the editor, hit submit, and it tells you whether your code passes the test cases. I want you to design the backend system that makes that work, particularly the part that actually runs user-submitted code.
 
-**Non-functional requirements:**
-- 5M active users, 10M code submissions per day
-- Verdict must be returned within 5 seconds for most problems
-- Code execution must be sandboxed — user code cannot affect other users or the host system
-- Support problems with up to 1,000 hidden test cases
-
-**Discuss:** sandboxed code execution (Docker/gVisor/isolate), resource limiting (CPU time, memory, process isolation), the judge pipeline (compile → run N test cases → aggregate verdict), horizontal scaling of execution workers, test case storage and distribution to workers, result caching (identical submissions), problem metadata service, and anti-cheat/plagiarism detection.`,
+What questions do you have?`,
   },
 
   // ─── Search & Discovery (continued) ──────────────────────────────────────
@@ -643,21 +561,10 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
     title: 'Design Facebook Post Search',
     category: 'Search & Discovery',
     difficulty: 'Hard',
-    prompt: `Design a full-text search feature for a social network, like Facebook's post search or Twitter's search.
+    prompt: `Let's design Facebook's post search — the search bar at the top of Facebook where you can search for posts people have written.
 
-**Functional requirements:**
-- Users can search for posts, comments, and people by keyword
-- Results are filtered by the searcher's privacy permissions (cannot see private posts from non-friends)
-- Results are ranked by relevance AND social signals (posts from friends rank higher)
-- New posts should be searchable within seconds of being published
-- Support filters: date range, post type (photo/video/link), author
+You type a keyword, you get back posts that match. Sounds simple, but Facebook has billions of users and hundreds of millions of posts per day, so there are some interesting challenges here. How would you design it?
 
-**Non-functional requirements:**
-- 500M new posts per day
-- 1B users, 5T posts in the total index
-- Search query latency < 500ms including privacy filtering
-- 100M search queries per day
-
-**Discuss:** indexing pipeline (Kafka → stream processing → inverted index update), the privacy challenge (why post-retrieval filtering is expensive and how to bake permissions into the index), personalized ranking (social graph signals: post is from a friend? mutuals? engaged with recently?), sharding the index (by user ID vs. post ID vs. time), handling index freshness for near-real-time indexing, and the difference between a social search ranking model vs. a web search ranking model.`,
+Feel free to ask me anything before you start.`,
   },
 ];
