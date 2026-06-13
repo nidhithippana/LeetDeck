@@ -74,12 +74,6 @@ export default function SettingsModal({ open, profile, sdNewPerDay, onSdNewPerDa
   const effectiveReminderHour = reminderEnabled ? reminderHour : null;
   const effectiveTimezone = reminderEnabled ? browserTz : profile.timezone;
 
-  const hasChanged =
-    newPerDay !== profile.newPerDay ||
-    reviewPerDay !== profile.reviewPerDay ||
-    effectiveReminderHour !== profile.reminderHour ||
-    (effectiveReminderHour !== null && profile.timezone !== browserTz);
-
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -313,7 +307,7 @@ export default function SettingsModal({ open, profile, sdNewPerDay, onSdNewPerDa
           </button>
           <button
             onClick={handleSave}
-            disabled={!hasChanged || saving}
+            disabled={saving}
             className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving && <Loader2 size={14} className="animate-spin" />}
