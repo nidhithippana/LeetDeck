@@ -102,8 +102,9 @@ export default function ProblemView({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (kind === 'review') return; // don't overwrite new/practice drafts
     window.localStorage.setItem(draftKey(problem.id, language), code);
-  }, [code, problem.id, language]);
+  }, [code, problem.id, language, kind]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
