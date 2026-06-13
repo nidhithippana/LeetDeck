@@ -271,9 +271,17 @@ export default function TodayView({
               {newCards.length === 0 && topicDropdown}
             </div>
             {hasTopicInReviews && (
-              <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                Focusing on <strong className="font-semibold">{topicFilter}</strong> today — your regular due reviews carry over to tomorrow.
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                  Focusing on <strong className="font-semibold">{topicFilter}</strong> today — your regular due reviews carry over to tomorrow.
+                </p>
+                <button
+                  onClick={() => onTopicFilterChange(null)}
+                  className="shrink-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
+                >
+                  Back to today's queue
+                </button>
+              </div>
             )}
             {topicFilter && (topicsCompleted as string[]).includes(topicFilter) && !hasTopicInReviews && (
               <p className="text-xs text-slate-400 dark:text-slate-500">
