@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, ChevronRight, Layers, CheckCircle2, Shuffle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ChevronDown, Layers, CheckCircle2, Shuffle, RotateCcw, BookOpen } from 'lucide-react';
 import LeetDeckLogo from '../components/LeetDeckLogo';
 import UserMenu from '../components/UserMenu';
 import type { User } from '@supabase/supabase-js';
@@ -130,6 +130,7 @@ export default function SystemDesignInterviewView({
   const [difficulty, setDifficulty] = useState<Difficulty>('All');
   const [category, setCategory] = useState<string>('All');
   const [showDone, setShowDone] = useState(true);
+  const [showCheatSheet, setShowCheatSheet] = useState(false);
 
   const DIFFICULTIES: Difficulty[] = ['All', 'Easy', 'Medium', 'Hard'];
   const categories = ['All', ...INTERVIEW_CATEGORIES];
@@ -251,6 +252,166 @@ export default function SystemDesignInterviewView({
               </button>
             ))}
           </div>
+        </div>
+
+        {/* How to answer SD questions cheat sheet */}
+        <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <button
+            onClick={() => setShowCheatSheet((v) => !v)}
+            className="flex w-full items-center justify-between px-5 py-4 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <BookOpen size={15} className="text-violet-500" />
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                How to answer SD questions
+              </span>
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                Cheat sheet
+              </span>
+            </div>
+            <ChevronDown
+              size={15}
+              className={`text-slate-400 transition-transform duration-200 ${showCheatSheet ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {showCheatSheet && (
+            <div className="border-t border-slate-100 px-5 pb-6 pt-5 dark:border-slate-800">
+              <div className="space-y-6 text-sm text-slate-700 dark:text-slate-300">
+
+                {/* 6 Steps */}
+                <section>
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-violet-600 dark:text-violet-400">
+                    The 6 steps (in order)
+                  </h3>
+                  <ol className="space-y-2.5">
+                    {[
+                      { n: 1, title: 'Functional requirements', body: 'What the system does. List the 2–3 core operations as verbs. Explicitly park everything else out of scope.' },
+                      { n: 2, title: 'Non-functional requirements', body: 'How it behaves under load. Consistency vs availability, latency target, scale (users, QPS), durability. Locate where each property is needed.' },
+                      { n: 3, title: 'Core entities & API', body: 'The nouns (data objects) and the endpoints that act on them. REST for CRUD; name request/response shapes.' },
+                      { n: 4, title: 'High-level design', body: 'Draw the happy path for each core operation. Client → entry point → service → storage. Get one clean flow before optimizing.' },
+                      { n: 5, title: 'Deep dive on the hard part', body: 'Every problem has one spot the interviewer pushes (ID generation, ranking, fan-out, consistency, dedup). Lay out the options and pick with a reason.' },
+                      { n: 6, title: 'Scale & operate', body: 'Add the layers that hit the non-functional targets: caching, sharding, replication, queues, rate limiting, monitoring.' },
+                    ].map(({ n, title, body }) => (
+                      <li key={n} className="flex gap-3">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[10px] font-bold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                          {n}
+                        </span>
+                        <div>
+                          <span className="font-semibold text-slate-800 dark:text-slate-100">{title}</span>
+                          {' — '}
+                          <span className="text-slate-600 dark:text-slate-400">{body}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+
+                {/* Back-of-envelope */}
+                <section className="border-t border-slate-100 pt-5 dark:border-slate-800">
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                    Back-of-envelope math
+                  </h3>
+                  <ul className="space-y-1.5">
+                    {[
+                      ['QPS', 'events per day ÷ 86,400 (~100K/day). Peak ≈ average × 2–10.'],
+                      ['Read:write ratio', 'Most consumer systems are read-heavy (10:1 to 1000:1). Drives caching strategy.'],
+                      ['Storage', 'rows × bytes/row × retention. Be generous on bytes/row.'],
+                      ['Bandwidth', 'QPS × payload size.'],
+                      ['Data sizes', 'KB ≈ 10³, MB ≈ 10⁶, GB ≈ 10⁹, TB ≈ 10¹². 1 char ≈ 1 byte; UUID ≈ 16 bytes; short row ≈ 0.5 KB.'],
+                      ['Latency anchors', 'Memory ~100 ns · SSD ~100 µs · same-DC ~0.5 ms · cross-region ~100–150 ms.'],
+                    ].map(([k, v]) => (
+                      <li key={k} className="flex gap-2">
+                        <span className="shrink-0 font-semibold text-slate-800 dark:text-slate-100">{k}:</span>
+                        <span className="text-slate-600 dark:text-slate-400">{v}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">State assumptions out loud. Interviewers grade the method, not the exact number.</p>
+                </section>
+
+                {/* Recurring decisions */}
+                <section className="border-t border-slate-100 pt-5 dark:border-slate-800">
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                    Recurring decisions
+                  </h3>
+                  <div className="space-y-3">
+                    {[
+                      { label: 'SQL vs NoSQL', body: 'Joins/transactions/flexible queries → SQL. Simple PK access, high write throughput → KV/document.' },
+                      { label: 'Consistency vs availability', body: 'Strong (money, inventory, uniqueness) on narrow ops; eventual (feeds, immutable data, counts) everywhere else.' },
+                      { label: 'Scaling', body: 'Vertical: bigger box, simple, has a ceiling, SPOF. Horizontal: more boxes, needs statelessness + load balancer, scales indefinitely.' },
+                      { label: 'Caching', body: 'Where: client / CDN / app / DB. What: hot, read-heavy, expensive, or immutable data. Eviction: LRU default. Invalidation is the hard part — immutable data sidesteps it.' },
+                      { label: 'DB scaling', body: 'Read replicas for read-heavy load (leader handles writes). Sharding for write volume — pick a key with even distribution; watch for hot shards.' },
+                      { label: 'Sync vs async', body: 'Synchronous: simple, caller waits. Async via queue: smooths spikes, decouples, enables retries; adds eventual consistency. Anything slow or non-critical → queue.' },
+                      { label: 'ID generation', body: 'Auto-increment: simple, SPOF, leaks count. UUID: no coordination, large, unsortable. Counter + encoding: compact, sortable — bottleneck fixed with range allocation (each server grabs a block).' },
+                      { label: 'API style', body: 'REST: CRUD, cacheable, ubiquitous. GraphQL: client picks fields, avoids over-fetching. gRPC: fast, binary, service-to-service.' },
+                    ].map(({ label, body }) => (
+                      <div key={label}>
+                        <span className="font-semibold text-slate-800 dark:text-slate-100">{label}</span>
+                        {' — '}
+                        <span className="text-slate-600 dark:text-slate-400">{body}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Component toolbox */}
+                <section className="border-t border-slate-100 pt-5 dark:border-slate-800">
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                    Standard component toolbox
+                  </h3>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {[
+                      { name: 'Load balancer', desc: 'Spreads traffic across stateless servers; enables horizontal scale.' },
+                      { name: 'CDN / edge cache', desc: 'Static or immutable content close to user; biggest latency win for global reads.' },
+                      { name: 'App cache (Redis)', desc: 'Hot data in memory; absorbs read load before the DB.' },
+                      { name: 'Message queue (Kafka)', desc: 'Buffers work, decouples services, smooths spikes.' },
+                      { name: 'API gateway', desc: 'Single entry point: routing, auth, rate limiting, TLS.' },
+                      { name: 'Blob store (S3)', desc: 'Large files — store file in blob, URL in DB.' },
+                      { name: 'Search index (ES)', desc: 'Text search and complex filtering the primary DB is bad at.' },
+                    ].map(({ name, desc }) => (
+                      <div key={name} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/50">
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">{name}</div>
+                        <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Volunteer these */}
+                <section className="border-t border-slate-100 pt-5 dark:border-slate-800">
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-rose-600 dark:text-rose-400">
+                    Volunteer these before you're asked (signals seniority)
+                  </h3>
+                  <ul className="space-y-1.5 text-slate-600 dark:text-slate-400">
+                    {[
+                      'Rate limiting on write/expensive endpoints to stop abuse.',
+                      'Single points of failure — name them, then replicate or add graceful degradation.',
+                      'Monitoring — p99 latency, cache hit rate, error rate, queue depth.',
+                      'The tradeoff you\'re NOT taking — "I\'d use 301 for cacheability, but that costs me click analytics."',
+                      'Hot keys / skew — small fraction of data gets most traffic; make sure cache and shard scheme handle it.',
+                    ].map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400 dark:bg-rose-500" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+
+                {/* Closing move */}
+                <section className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 dark:border-violet-900/40 dark:bg-violet-950/30">
+                  <div className="mb-1 text-xs font-bold uppercase tracking-widest text-violet-600 dark:text-violet-400">
+                    The closing move
+                  </div>
+                  <p className="text-slate-700 dark:text-slate-300">
+                    End by mapping each component back to the requirement it satisfies. <span className="italic">"Load balancer + stateless servers → the scale target; CDN + cache → the latency target; narrow strong consistency → correctness."</span> That loop makes the design feel complete instead of a pile of boxes.
+                  </p>
+                </section>
+
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Browse filters */}
