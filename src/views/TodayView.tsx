@@ -139,8 +139,11 @@ export default function TodayView({
     return () => window.clearTimeout(t);
   }, [allDone, didAnythingToday]);
 
-  // Whether the current filter points to a completed topic (drives the hint text)
-  const filterIsCompletedTopic = topicFilter !== null && (topicsCompleted as string[]).includes(topicFilter);
+  // Only show the "extra review from X" hint if that topic actually appears in the queue
+  const hasTopicInReviews =
+    topicFilter !== null &&
+    (topicsCompleted as string[]).includes(topicFilter) &&
+    reviewCards.some((p) => p.topic === topicFilter);
   const showDropdown = topicsWithNew.length > 0 || topicsCompleted.length > 0;
 
   const topicDropdown = showDropdown ? (
@@ -267,9 +270,14 @@ export default function TodayView({
               {/* Show topic picker in reviews header when new cards section isn't visible */}
               {newCards.length === 0 && topicDropdown}
             </div>
-            {filterIsCompletedTopic && (
+            {hasTopicInReviews && (
               <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                Showing extra review from <strong className="font-semibold">{topicFilter}</strong>
+                Includes extra review from <strong className="font-semibold">{topicFilter}</strong>
+              </p>
+            )}
+            {topicFilter && (topicsCompleted as string[]).includes(topicFilter) && !hasTopicInReviews && (
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                No additional <strong className="font-semibold">{topicFilter}</strong> cards available right now — all are either due or not yet started.
               </p>
             )}
             <div className="space-y-2">
