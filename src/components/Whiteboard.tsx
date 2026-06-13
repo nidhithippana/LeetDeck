@@ -202,12 +202,25 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     setActiveTextId(id);
   };
 
+  const getBounds = () => {
+    const r = canvasRef.current!.getBoundingClientRect();
+    return { W: r.width, H: r.height };
+  };
+
   const startTextDrag = (e: React.MouseEvent, id: string) => {
     if ((e.target as HTMLElement).tagName === 'TEXTAREA') return;
     e.preventDefault();
-    const el = elements.find(t => t.id === id)!;
+    const el = elements.find(t => t.id === id) as TextElement;
     const { x: ox, y: oy } = el; const mx0 = e.clientX, my0 = e.clientY;
-    const onMove = (ev: MouseEvent) => setElements(prev => prev.map(t => t.id === id ? { ...t, x: ox + ev.clientX - mx0, y: oy + ev.clientY - my0 } : t));
+    const { W, H } = getBounds();
+    const onMove = (ev: MouseEvent) => setElements(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      const te = t as TextElement;
+      return { ...t,
+        x: Math.max(0, Math.min(W - te.width,  ox + ev.clientX - mx0)),
+        y: Math.max(0, Math.min(H - te.height, oy + ev.clientY - my0)),
+      };
+    }));
     const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
   };
@@ -217,13 +230,15 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     const el = elements.find(t => t.id === id) as TextElement;
     const { x: ox, width: ow } = el;
     const mx0 = e.clientX;
+    const { W } = getBounds();
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - mx0;
       setElements(prev => prev.map(t => {
         if (t.id !== id) return t;
-        let { x, width } = t as TextElement;
-        if (side === 'e') width = Math.max(60, ow + dx);
-        if (side === 'w') { x = ox + dx; width = Math.max(60, ow - dx); }
+        const te = t as TextElement;
+        let { x, width } = te;
+        if (side === 'e') width = Math.max(60, Math.min(W - te.x, ow + dx));
+        if (side === 'w') { x = Math.max(0, ox + dx); width = Math.max(60, (ox + ow) - x); }
         return { ...t, x, width, fontSize: fontSizeFromWidth(width) };
       }));
     };
@@ -290,15 +305,22 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     const el = elements.find(t => t.id === id)!;
     const mx0 = e.clientX, my0 = e.clientY;
     const snap = { ...el };
+    const { W, H } = getBounds();
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - mx0, dy = ev.clientY - my0;
       setElements(prev => prev.map(t => {
         if (t.id !== id) return t;
         if (t.type === 'arrow') {
           const a = snap as ArrowElement;
-          return { ...t, x: a.x + dx, y: a.y + dy, x2: a.x2 + dx, y2: a.y2 + dy };
+          const nx  = Math.max(0, Math.min(W, a.x  + dx)), ny  = Math.max(0, Math.min(H, a.y  + dy));
+          const nx2 = Math.max(0, Math.min(W, a.x2 + dx)), ny2 = Math.max(0, Math.min(H, a.y2 + dy));
+          return { ...t, x: nx, y: ny, x2: nx2, y2: ny2 };
         }
-        return { ...t, x: (snap as RectElement).x + dx, y: (snap as RectElement).y + dy };
+        const s = snap as RectElement;
+        return { ...t,
+          x: Math.max(0, Math.min(W - s.width,  s.x + dx)),
+          y: Math.max(0, Math.min(H - s.height, s.y + dy)),
+        };
       }));
     };
     const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
@@ -310,15 +332,16 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     const el = elements.find(t => t.id === id) as RectElement | CircleElement;
     const { x:ox, y:oy, width:ow, height:oh } = el;
     const mx0 = e.clientX, my0 = e.clientY;
+    const { W, H } = getBounds();
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - mx0, dy = ev.clientY - my0;
       setElements(prev => prev.map(t => {
         if (t.id !== id) return t;
         let { x, y, width, height } = t as RectElement;
-        if (corner.includes('e')) width  = Math.max(10, ow + dx);
-        if (corner.includes('s')) height = Math.max(10, oh + dy);
-        if (corner.includes('w')) { x = ox + dx; width  = Math.max(10, ow - dx); }
-        if (corner.includes('n')) { y = oy + dy; height = Math.max(10, oh - dy); }
+        if (corner.includes('e')) width  = Math.max(10, Math.min(W - ox,       ow + dx));
+        if (corner.includes('s')) height = Math.max(10, Math.min(H - oy,       oh + dy));
+        if (corner.includes('w')) { x = Math.max(0, ox + dx); width  = Math.max(10, (ox + ow) - x); }
+        if (corner.includes('n')) { y = Math.max(0, oy + dy); height = Math.max(10, (oy + oh) - y); }
         return { ...t, x, y, width, height };
       }));
     };
@@ -331,13 +354,14 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     const mx0 = e.clientX, my0 = e.clientY;
     const el = elements.find(t => t.id === id) as ArrowElement;
     const snap = { x: el.x, y: el.y, x2: el.x2, y2: el.y2 };
+    const { W, H } = getBounds();
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - mx0, dy = ev.clientY - my0;
       setElements(prev => prev.map(t => {
         if (t.id !== id) return t;
         return endpoint === 'start'
-          ? { ...t, x: snap.x + dx, y: snap.y + dy }
-          : { ...t, x2: snap.x2 + dx, y2: snap.y2 + dy };
+          ? { ...t, x:  Math.max(0, Math.min(W, snap.x  + dx)), y:  Math.max(0, Math.min(H, snap.y  + dy)) }
+          : { ...t, x2: Math.max(0, Math.min(W, snap.x2 + dx)), y2: Math.max(0, Math.min(H, snap.y2 + dy)) };
       }));
     };
     const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
@@ -423,7 +447,11 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     if (!selection || selection.phase !== 'placed') return;
     e.preventDefault(); e.stopPropagation();
     const { x:ix, y:iy } = selection; const mx0=e.clientX, my0=e.clientY;
-    const onMove=(ev:MouseEvent)=>setSelection(s=>s?.phase==='placed'?{...s,x:ix+ev.clientX-mx0,y:iy+ev.clientY-my0}:s);
+    const { W, H } = getBounds();
+    const onMove=(ev:MouseEvent)=>setSelection(s=>s?.phase==='placed'?{...s,
+      x: Math.max(0, Math.min(W - s.w, ix+ev.clientX-mx0)),
+      y: Math.max(0, Math.min(H - s.h, iy+ev.clientY-my0)),
+    }:s);
     const onUp=()=>{document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);};
     document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
   };
@@ -432,15 +460,16 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     if (!selection||selection.phase!=='placed') return;
     e.preventDefault(); e.stopPropagation();
     const init={...selection}; const mx0=e.clientX, my0=e.clientY;
+    const { W, H } = getBounds();
     const onMove=(ev:MouseEvent)=>{
       const dx=ev.clientX-mx0, dy=ev.clientY-my0;
       setSelection(s=>{
         if(!s||s.phase!=='placed') return s;
         let{x,y,w,h}={x:init.x,y:init.y,w:init.w,h:init.h};
-        if(corner.includes('e')) w=Math.max(20,init.w+dx);
-        if(corner.includes('s')) h=Math.max(20,init.h+dy);
-        if(corner.includes('w')){x=init.x+dx;w=Math.max(20,init.w-dx);}
-        if(corner.includes('n')){y=init.y+dy;h=Math.max(20,init.h-dy);}
+        if(corner.includes('e')) w=Math.max(20, Math.min(W - init.x, init.w+dx));
+        if(corner.includes('s')) h=Math.max(20, Math.min(H - init.y, init.h+dy));
+        if(corner.includes('w')){x=Math.max(0,init.x+dx);w=Math.max(20,(init.x+init.w)-x);}
+        if(corner.includes('n')){y=Math.max(0,init.y+dy);h=Math.max(20,(init.y+init.h)-y);}
         return{...s,x,y,w,h};
       });
     };
