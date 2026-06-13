@@ -10,7 +10,7 @@ export function getAIKey(): string {
   }
   const stored = current ?? legacy ?? '';
   if (stored) return stored;
-  return (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ?? '';
+  return (import.meta.env.VITE_OPENAI_API_KEY as string | undefined) ?? '';
 }
 
 export function saveAIKey(key: string) {
@@ -18,14 +18,15 @@ export function saveAIKey(key: string) {
   window.localStorage.setItem(AI_KEY_STORAGE, key.trim());
 }
 
-function geminiRequest(apiKey: string, body: object): Promise<Response> {
-  const isOAuth = apiKey.startsWith('AQ.');
-  const url = isOAuth
-    ? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
-    : `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (isOAuth) headers['Authorization'] = `Bearer ${apiKey}`;
-  return fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+async function openaiRequest(apiKey: string, body: object): Promise<Response> {
+  return fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
 }
 
 export type ReviewFeedback = {
@@ -44,9 +45,7 @@ export async function reviewDesign(params: {
 }): Promise<ReviewFeedback> {
   const apiKey = getAIKey();
   if (!apiKey) {
-    throw new Error(
-      'No API key found. Add your Gemini API key in Settings → AI Review.'
-    );
+    throw new Error('No API key found. Add your OpenAI API key in Settings → AI Review.');
   }
 
   const prompt = `You are an expert system design interviewer at a top-tier tech company.
@@ -82,25 +81,25 @@ Return ONLY a valid JSON object with exactly this structure (no other text, no m
 
 Be constructive, specific, and reference their actual response content. A score of 7+ means ready for senior roles.`;
 
-  type GeminiPart =
-    | { text: string }
-    | { inline_data: { mime_type: string; data: string } };
+  type ContentPart =
+    | { type: 'text'; text: string }
+    | { type: 'image_url'; image_url: { url: string } };
 
-  const parts: GeminiPart[] = [{ text: prompt }];
-
+  const content: ContentPart[] = [{ type: 'text', text: prompt }];
   if (params.imageDataUrl) {
-    const base64 = params.imageDataUrl.replace(/^data:image\/png;base64,/, '');
-    parts.push({ inline_data: { mime_type: 'image/png', data: base64 } });
+    content.push({ type: 'image_url', image_url: { url: params.imageDataUrl } });
   }
 
-  const response = await geminiRequest(apiKey, {
-    contents: [{ parts }],
-    generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+  const response = await openaiRequest(apiKey, {
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content }],
+    max_tokens: 1024,
+    temperature: 0.3,
   });
 
   if (!response.ok) {
     const errText = await response.text();
-    let message = `Gemini API error ${response.status}`;
+    let message = `OpenAI API error ${response.status}`;
     try {
       const parsed = JSON.parse(errText) as { error?: { message?: string } };
       if (parsed.error?.message) message = parsed.error.message;
@@ -111,12 +110,10 @@ Be constructive, specific, and reference their actual response content. A score 
   }
 
   const data = (await response.json()) as {
-    candidates: Array<{
-      content: { parts: Array<{ text: string }> };
-    }>;
+    choices: Array<{ message: { content: string } }>;
   };
 
-  const text = data.candidates[0]?.content?.parts[0]?.text ?? '';
+  const text = data.choices[0]?.message?.content ?? '';
 
   try {
     const cleaned = text.trim().replace(/^```json\s*/i, '').replace(/\s*```$/, '');
@@ -135,12 +132,10 @@ export async function chatWithInterviewer(params: {
 }): Promise<string> {
   const apiKey = getAIKey();
   if (!apiKey) {
-    throw new Error('No API key found. Add your Gemini API key in Settings → AI Review.');
+    throw new Error('No API key found. Add your OpenAI API key in Settings → AI Review.');
   }
 
-  // Seed the conversation with a role-play handshake so the model stays in
-  // interviewer mode without needing system_instruction (broader API compat).
-  const seedUser = `You are playing the role of a senior system design interviewer at a top-tier tech company. The candidate is going to design: "${params.questionTitle}".
+  const systemPrompt = `You are playing the role of a senior system design interviewer at a top-tier tech company. The candidate is going to design: "${params.questionTitle}".
 
 Context you know as the interviewer:
 ${params.questionPrompt}
@@ -150,27 +145,26 @@ Rules for you:
 - Give concrete numbers and constraints when asked (scale, latency targets, etc.)
 - Do NOT suggest architectures or hint at solutions
 - If they ask something off-topic, redirect them briefly
-- After 5+ clarifying questions, you can nudge: "I think you have enough to start — what's your approach?"
+- After 5+ clarifying questions, you can nudge: "I think you have enough to start — what's your approach?"`;
 
-Respond now with only: "Got it. Go ahead with your questions."`;
-
-  const contents = [
-    { role: 'user', parts: [{ text: seedUser }] },
-    { role: 'model', parts: [{ text: 'Got it. Go ahead with your questions.' }] },
+  const messages = [
+    { role: 'system', content: systemPrompt },
     ...params.messages.map((msg) => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }],
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content,
     })),
   ];
 
-  const response = await geminiRequest(apiKey, {
-    contents,
-    generationConfig: { temperature: 0.7, maxOutputTokens: 300 },
+  const response = await openaiRequest(apiKey, {
+    model: 'gpt-4o-mini',
+    messages,
+    max_tokens: 300,
+    temperature: 0.7,
   });
 
   if (!response.ok) {
     const errText = await response.text();
-    let message = `Gemini API error ${response.status}`;
+    let message = `OpenAI API error ${response.status}`;
     try {
       const parsed = JSON.parse(errText) as { error?: { message?: string } };
       if (parsed.error?.message) message = parsed.error.message;
@@ -179,7 +173,7 @@ Respond now with only: "Got it. Go ahead with your questions."`;
   }
 
   const data = (await response.json()) as {
-    candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
+    choices: Array<{ message: { content: string } }>;
   };
-  return data.candidates[0]?.content?.parts[0]?.text?.trim() ?? 'No response.';
+  return data.choices[0]?.message?.content?.trim() ?? 'No response.';
 }

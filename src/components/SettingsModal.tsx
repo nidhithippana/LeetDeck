@@ -258,10 +258,10 @@ export default function SettingsModal({ open, profile, sdNewPerDay, onSdNewPerDa
           <div className="border-t border-slate-200 pt-5 dark:border-slate-800">
             <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
               <KeyRound size={14} className="text-violet-500" />
-              AI Review (Google Gemini API key)
+              AI Review (OpenAI API key)
             </label>
             <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-              Used to evaluate your system design interview responses. Stored locally in your browser only.
+              Used to evaluate your system design interview responses. Stored locally in your browser only. Get a key at platform.openai.com/api-keys.
             </p>
             <div className="relative">
               <input
@@ -269,7 +269,7 @@ export default function SettingsModal({ open, profile, sdNewPerDay, onSdNewPerDa
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 onBlur={() => saveAIKey(apiKey)}
-                placeholder="AIzaSy..."
+                placeholder="sk-..."
                 className="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-3 pr-8 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-500"
               />
               <button
@@ -283,7 +283,7 @@ export default function SettingsModal({ open, profile, sdNewPerDay, onSdNewPerDa
             </div>
             {apiKey && (
               <p className="mt-1 text-[10px] text-emerald-600 dark:text-emerald-400">
-                Gemini key saved — used for Interview AI review.
+                OpenAI key saved — used for Interview AI review.
               </p>
             )}
           </div>
