@@ -13,8 +13,6 @@ type ArrowElement  = { id: string; type: 'arrow';  x: number; y: number; x2: num
 type BoardElement  = TextElement | RectElement | CircleElement | ArrowElement;
 
 type CornerHandle = 'nw' | 'ne' | 'sw' | 'se';
-type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
-const TEXT_HANDLES: ResizeHandle[] = ['nw','n','ne','e','se','s','sw','w'];
 
 type SelectionState =
   | { phase: 'drawing'; sx: number; sy: number; ex: number; ey: number }
@@ -37,16 +35,6 @@ const HANDLE_PX = 9;
 const H2 = HANDLE_PX / 2;
 
 // ─── Handle style helpers ─────────────────────────────────────────────────────
-
-function textHandleStyle(h: ResizeHandle, w: number, ht: number): React.CSSProperties {
-  const base: React.CSSProperties = { position:'absolute', width:HANDLE_PX, height:HANDLE_PX, background:'#6366f1', border:'1.5px solid white', borderRadius:2, zIndex:32, cursor: h+'-resize' };
-  const m: Record<ResizeHandle, React.CSSProperties> = {
-    nw:{ top:-H2, left:-H2 }, n:{ top:-H2, left:w/2-H2 }, ne:{ top:-H2, right:-H2 },
-    e:{ top:ht/2-H2, right:-H2 }, se:{ bottom:-H2, right:-H2 }, s:{ bottom:-H2, left:w/2-H2 },
-    sw:{ bottom:-H2, left:-H2 }, w:{ top:ht/2-H2, left:-H2 },
-  };
-  return { ...base, ...m[h] };
-}
 
 
 const endpointHandleStyle = (x: number, y: number): React.CSSProperties => ({
@@ -203,13 +191,14 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     });
   };
 
-  const textHeightForSize = (s: number) => ({ 2: 60, 5: 80, 11: 120 } as Record<number,number>)[s] ?? 80;
-  const fontSizeFromHeight = (h: number) => Math.max(8, Math.round(h * 0.225));
+  const fontSizeFromWidth = (w: number) => Math.max(8, Math.round(w * 0.09));
 
   const createText = (cssX: number, cssY: number) => {
     const id = newId();
-    const height = textHeightForSize(size);
-    setElements(prev => [...prev, { id, type:'text', x:cssX, y:cssY, width:200, height, value:'', fontSize: fontSizeFromHeight(height), color, rotation: 0 } as TextElement]);
+    const widthForSize: Record<number, number> = { 2: 140, 5: 200, 11: 300 };
+    const width = widthForSize[size] ?? 200;
+    const fontSize = fontSizeFromWidth(width);
+    setElements(prev => [...prev, { id, type:'text', x:cssX, y:cssY, width, height: Math.round(fontSize * 1.8), value:'', fontSize, color, rotation: 0 } as TextElement]);
     setActiveTextId(id);
   };
 
@@ -223,22 +212,19 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
   };
 
-  const startTextResize = (e: React.MouseEvent, id: string, handle: ResizeHandle) => {
+  const startWidthResize = (e: React.MouseEvent, id: string, side: 'w' | 'e') => {
     e.preventDefault(); e.stopPropagation();
     const el = elements.find(t => t.id === id) as TextElement;
-    const { x:ox, y:oy, width:ow, height:oh } = el;
-    const mx0 = e.clientX, my0 = e.clientY;
+    const { x: ox, width: ow } = el;
+    const mx0 = e.clientX;
     const onMove = (ev: MouseEvent) => {
-      const dx = ev.clientX - mx0, dy = ev.clientY - my0;
+      const dx = ev.clientX - mx0;
       setElements(prev => prev.map(t => {
         if (t.id !== id) return t;
-        let { x, y, width, height } = t as TextElement;
-        if (handle.includes('e')) width  = Math.max(80, ow + dx);
-        if (handle.includes('s')) height = Math.max(40, oh + dy);
-        if (handle.includes('w')) { x = ox + dx; width  = Math.max(80, ow - dx); }
-        if (handle.includes('n')) { y = oy + dy; height = Math.max(40, oh - dy); }
-        const fontSize = Math.max(8, Math.round(height * 0.225));
-        return { ...t, x, y, width, height, fontSize };
+        let { x, width } = t as TextElement;
+        if (side === 'e') width = Math.max(60, ow + dx);
+        if (side === 'w') { x = ox + dx; width = Math.max(60, ow - dx); }
+        return { ...t, x, width, fontSize: fontSizeFromWidth(width) };
       }));
     };
     const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
@@ -736,7 +722,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
             <div key={te.id} data-text-el
               style={{
                 position: 'absolute', left: te.x, top: te.y,
-                width: te.width, height: te.height,
+                width: te.width,
                 zIndex: 25, userSelect: 'none', overflow: 'visible',
                 transform: `rotate(${rot}deg)`,
                 transformOrigin: 'center center',
@@ -756,26 +742,54 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
                 </div>
               )}
 
-              {/* Text box */}
-              <div style={{ position:'relative', width:'100%', height:'100%', cursor:'move' }}
+              {/* Text box — height auto-fits content */}
+              <div style={{ position:'relative', cursor:'move' }}
                 className={isActive ? 'border-2 border-dashed border-indigo-400' : ''}
               >
                 {isActive ? (
                   <textarea autoFocus value={te.value}
-                    onChange={e => setElements(prev => prev.map(t => t.id===te.id ? {...t, value:e.target.value} : t))}
+                    ref={el => {
+                      if (!el) return;
+                      el.style.height = 'auto';
+                      const h = el.scrollHeight;
+                      el.style.height = h + 'px';
+                      if (te.height !== h) setElements(prev => prev.map(t => t.id===te.id ? {...t, height:h} : t));
+                    }}
+                    onChange={e => {
+                      e.target.style.height = 'auto';
+                      const h = e.target.scrollHeight;
+                      e.target.style.height = h + 'px';
+                      setElements(prev => prev.map(t => t.id===te.id ? {...t, value:e.target.value, height:h} : t));
+                    }}
                     onMouseDown={e => e.stopPropagation()}
                     onKeyDown={e => { if(e.key==='Escape') deactivateText(); }}
                     placeholder="Type here…"
-                    style={{ fontSize:te.fontSize, color:te.color, resize:'none', cursor:'text', lineHeight:1.4 }}
-                    className="h-full w-full border-0 bg-transparent p-1.5 outline-none placeholder:text-slate-300" />
+                    style={{ fontSize:te.fontSize, color:te.color, resize:'none', cursor:'text', lineHeight:1.4, width:'100%', display:'block', overflow:'hidden' }}
+                    className="border-0 bg-transparent p-2 outline-none placeholder:text-slate-300"
+                  />
                 ) : (
-                  <div style={{ fontSize:te.fontSize, color:te.color, lineHeight:1.4, whiteSpace:'pre-wrap', wordBreak:'break-word', padding:'0.375rem' }}>
-                    {te.value || <span className="text-slate-300 text-sm">Empty</span>}
+                  <div style={{ fontSize:te.fontSize, color:te.color, lineHeight:1.4, whiteSpace:'pre-wrap', wordBreak:'break-word', padding:'0.5rem', minHeight: te.fontSize * 1.8 }}>
+                    {te.value || <span style={{ opacity:0.3 }}>Text</span>}
                   </div>
                 )}
-                {isActive && TEXT_HANDLES.map(h => (
-                  <div key={h} style={textHandleStyle(h, te.width, te.height)} onMouseDown={e => startTextResize(e, te.id, h)} />
-                ))}
+
+                {/* Left / right width resize handles */}
+                {isActive && (
+                  <>
+                    <div
+                      style={{ position:'absolute', left:-5, top:0, bottom:0, width:10, cursor:'ew-resize', zIndex:33, display:'flex', alignItems:'center', justifyContent:'center' }}
+                      onMouseDown={e => startWidthResize(e, te.id, 'w')}
+                    >
+                      <div style={{ width:3, height:20, background:'#6366f1', borderRadius:2, opacity:0.7 }} />
+                    </div>
+                    <div
+                      style={{ position:'absolute', right:-5, top:0, bottom:0, width:10, cursor:'ew-resize', zIndex:33, display:'flex', alignItems:'center', justifyContent:'center' }}
+                      onMouseDown={e => startWidthResize(e, te.id, 'e')}
+                    >
+                      <div style={{ width:3, height:20, background:'#6366f1', borderRadius:2, opacity:0.7 }} />
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Delete button */}
