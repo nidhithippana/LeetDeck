@@ -1,4 +1,4 @@
-import { BookOpen, CheckCircle2, RotateCcw, Layers } from "lucide-react";
+import { BookOpen, CheckCircle2, RotateCcw, Layers, RefreshCw } from "lucide-react";
 import LeetDeckLogo from "../components/LeetDeckLogo";
 import UserMenu from "../components/UserMenu";
 import type { User } from "@supabase/supabase-js";
@@ -55,12 +55,14 @@ export default function SystemDesignView({
   sdSrs,
   user,
   onStartReview,
+  onRestudyToday,
   onSignOut,
   onOpenSettings,
 }: {
   sdSrs: SdSrsState;
   user: User;
   onStartReview: () => void;
+  onRestudyToday: () => void;
   onSignOut: () => Promise<void>;
   onOpenSettings?: () => void;
 }) {
@@ -200,9 +202,18 @@ export default function SystemDesignView({
 
         {reviewedCount > 0 && (
           <section className="space-y-2 pt-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Reviewed today
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Reviewed today
+              </h2>
+              <button
+                onClick={onRestudyToday}
+                className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
+              >
+                <RefreshCw size={11} />
+                Restudy all {reviewedCount}
+              </button>
+            </div>
             <div className="space-y-1.5">
               {sdSrs.todayReviewed.map((id) => {
                 const card = SD_CARDS.find((c) => c.id === id);

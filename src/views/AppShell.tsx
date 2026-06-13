@@ -140,6 +140,13 @@ export default function AppShell() {
     }
   }, [sdSrs.dueCards]);
 
+  const handleRestudySD = useCallback(() => {
+    const queue = sdSrs.todayReviewed;
+    if (queue.length > 0) {
+      setRoute({ name: "sd-review", queue });
+    }
+  }, [sdSrs.todayReviewed]);
+
   if (!user) return null;
 
   if (srs.loading) {
@@ -192,6 +199,7 @@ export default function AppShell() {
         sdSrs={sdSrs}
         user={user}
         onStartReview={handleStartSDReview}
+        onRestudyToday={handleRestudySD}
         onSignOut={signOut}
         onOpenSettings={openSettings}
       />
