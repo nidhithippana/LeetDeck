@@ -446,7 +446,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   // ─── Canvas event dispatch ─────────────────────────────────────────────────
 
   const getRelativePos = (e: React.MouseEvent<HTMLElement>) => {
-    const r = containerRef.current!.getBoundingClientRect();
+    const r = e.currentTarget.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
 
