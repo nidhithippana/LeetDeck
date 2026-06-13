@@ -1,4 +1,5 @@
-import { BookOpen, CheckCircle2, RotateCcw, Layers, RefreshCw } from "lucide-react";
+import { BookOpen, CheckCircle2, RotateCcw, Layers, RefreshCw, ChevronDown } from "lucide-react";
+import { useState } from "react";
 import LeetDeckLogo from "../components/LeetDeckLogo";
 import UserMenu from "../components/UserMenu";
 import type { User } from "@supabase/supabase-js";
@@ -6,47 +7,79 @@ import type { SdSrsState, SDTopicStat } from "../srs/useSdSrs";
 import { SD_CARDS } from "../data/systemDesign";
 import { usePageTitle } from "../lib/usePageTitle";
 
-function TopicRow({ stat }: { stat: SDTopicStat }) {
+function TopicRow({
+  stat,
+  expanded,
+  onToggle,
+  onBrowseCard,
+}: {
+  stat: SDTopicStat;
+  expanded: boolean;
+  onToggle: () => void;
+  onBrowseCard: (cardId: string) => void;
+}) {
   const allDone = stat.due === 0;
   const pct = stat.total > 0 ? (stat.touched / stat.total) * 100 : 0;
+  const topicCards = SD_CARDS.filter((c) => c.topic === stat.topic);
 
   return (
-    <div className="flex items-center gap-4 rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-            {stat.topic}
-          </span>
-          {stat.due > 0 && (
-            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
-              {stat.due} due
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center gap-4 px-4 py-3 text-left"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+              {stat.topic}
             </span>
-          )}
+            {stat.due > 0 && (
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                {stat.due} due
+              </span>
+            )}
+          </div>
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+            <div
+              className={`h-full rounded-full transition-all ${
+                pct === 100 ? "bg-emerald-500" : "bg-indigo-400 dark:bg-indigo-500"
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
         </div>
-        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-          <div
-            className={`h-full rounded-full transition-all ${
-              pct === 100
-                ? "bg-emerald-500"
-                : "bg-indigo-400 dark:bg-indigo-500"
-            }`}
-            style={{ width: `${pct}%` }}
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="text-right">
+            <div className="font-mono text-xs text-slate-500 dark:text-slate-400">
+              {stat.touched} / {stat.total}
+            </div>
+            {allDone ? (
+              <CheckCircle2 size={14} className="ml-auto mt-0.5 text-emerald-500" />
+            ) : (
+              <RotateCcw size={12} className="ml-auto mt-0.5 text-slate-300 dark:text-slate-600" />
+            )}
+          </div>
+          <ChevronDown
+            size={14}
+            className={`shrink-0 text-slate-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
           />
         </div>
-      </div>
-      <div className="shrink-0 text-right">
-        <div className="font-mono text-xs text-slate-500 dark:text-slate-400">
-          {stat.touched} / {stat.total}
+      </button>
+
+      {expanded && (
+        <div className="border-t border-slate-100 dark:border-slate-800">
+          {topicCards.map((card) => (
+            <button
+              key={card.id}
+              onClick={() => onBrowseCard(card.id)}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-600 transition hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800/60"
+            >
+              <BookOpen size={12} className="shrink-0 text-slate-400" />
+              <span className="truncate">{card.front}</span>
+            </button>
+          ))}
         </div>
-        {allDone ? (
-          <CheckCircle2 size={14} className="ml-auto mt-0.5 text-emerald-500" />
-        ) : (
-          <RotateCcw
-            size={12}
-            className="ml-auto mt-0.5 text-slate-300 dark:text-slate-600"
-          />
-        )}
-      </div>
+      )}
     </div>
   );
 }
@@ -56,6 +89,7 @@ export default function SystemDesignView({
   user,
   onStartReview,
   onRestudyToday,
+  onBrowseCard,
   onSignOut,
   onOpenSettings,
 }: {
@@ -63,9 +97,12 @@ export default function SystemDesignView({
   user: User;
   onStartReview: () => void;
   onRestudyToday: () => void;
+  onBrowseCard: (cardId: string) => void;
   onSignOut: () => Promise<void>;
   onOpenSettings?: () => void;
 }) {
+  const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
+
   const dueCount = sdSrs.dueCards.length;
   const reviewedCount = sdSrs.todayReviewed.length;
   const totalReviewed = Object.values(sdSrs.cards).filter(
@@ -215,7 +252,15 @@ export default function SystemDesignView({
           </h2>
           <div className="space-y-2">
             {sdSrs.topicStats.map((stat) => (
-              <TopicRow key={stat.topic} stat={stat} />
+              <TopicRow
+                key={stat.topic}
+                stat={stat}
+                expanded={expandedTopic === stat.topic}
+                onToggle={() =>
+                  setExpandedTopic(expandedTopic === stat.topic ? null : stat.topic)
+                }
+                onBrowseCard={onBrowseCard}
+              />
             ))}
           </div>
         </section>

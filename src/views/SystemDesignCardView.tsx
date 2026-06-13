@@ -91,6 +91,7 @@ type Props = {
   sdSrs: SdSrsState;
   onBack: () => void;
   onDone: () => void;
+  readOnly?: boolean;
 };
 
 export default function SystemDesignCardView({
@@ -98,6 +99,7 @@ export default function SystemDesignCardView({
   sdSrs,
   onBack,
   onDone,
+  readOnly = false,
 }: Props) {
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -184,8 +186,8 @@ export default function SystemDesignCardView({
             )}
           </div>
 
-          {/* Rating */}
-          {flipped && (
+          {/* Rating / Browse navigation */}
+          {flipped && !readOnly && (
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
               <div className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
                 How well did you know this?
@@ -217,6 +219,23 @@ export default function SystemDesignCardView({
                 </strong>{" "}
                 schedules it furthest out.
               </p>
+            </div>
+          )}
+          {flipped && readOnly && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  if (index + 1 >= queue.length) {
+                    onDone();
+                  } else {
+                    setIndex((i) => i + 1);
+                    setFlipped(false);
+                  }
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
+              >
+                {index + 1 >= queue.length ? "Done" : "Next →"}
+              </button>
             </div>
           )}
         </div>

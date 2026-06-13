@@ -39,6 +39,7 @@ type LcRoute =
 type SdRoute =
   | { name: "sd-today" }
   | { name: "sd-review"; queue: string[] }
+  | { name: "sd-browse"; queue: string[] }
   | { name: "sd-interview" }
   | { name: "sd-interview-session"; questionId: string };
 
@@ -147,6 +148,10 @@ export default function AppShell() {
     }
   }, [sdSrs.todayReviewed]);
 
+  const openSDBrowse = useCallback((cardId: string) => {
+    setRoute({ name: "sd-browse", queue: [cardId] });
+  }, []);
+
   if (!user) return null;
 
   if (srs.loading) {
@@ -200,6 +205,7 @@ export default function AppShell() {
         user={user}
         onStartReview={handleStartSDReview}
         onRestudyToday={handleRestudySD}
+        onBrowseCard={openSDBrowse}
         onSignOut={signOut}
         onOpenSettings={openSettings}
       />
@@ -211,6 +217,16 @@ export default function AppShell() {
         sdSrs={sdSrs}
         onBack={goSDToday}
         onDone={goSDToday}
+      />
+    );
+  } else if (route.name === "sd-browse") {
+    content = (
+      <SystemDesignCardView
+        queue={route.queue}
+        sdSrs={sdSrs}
+        onBack={goSDToday}
+        onDone={goSDToday}
+        readOnly
       />
     );
   } else if (route.name === "sd-interview") {
