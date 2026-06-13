@@ -84,11 +84,39 @@ export function buildDailyQueue(args: {
     .map((c) => PROBLEMS.find((p) => p.id === c.problemId))
     .filter((p): p is Problem => Boolean(p));
 
-  // ─── Bonus reviews from past topics ──────────────────────────────────────
-  // Pick 2 not-yet-due cards as light reinforcement.
-  // - If the user picked a completed topic (topicFilter set, no new cards for it),
-  //   restrict bonus reviews to that topic so the selection feels intentional.
-  // - Otherwise, pick the 2 soonest-due cards across all touched topics.
+  // ─── Completed-topic random pick ─────────────────────────────────────────
+  // When the user picks a topic they've already finished, grab 1 random card
+  // from it (any problem — SRS schedule ignored) and inject it into whichever
+  // section fits: reviews if the problem has been seen, new if it hasn't.
+  const alreadyShown = new Set([
+    ...newDoneToday,
+    ...reviewDoneToday,
+    ...newCards.map((p) => p.id),
+    ...reviewCards.map((p) => p.id),
+  ]);
+
+  let topicPickNew: Problem[] = [];
+  let topicPickReview: Problem[] = [];
+
+  if (topicFilter && !filterHasNew) {
+    const pool = PROBLEMS
+      .filter((p) => p.topic === topicFilter && !skipped.has(p.id) && !alreadyShown.has(p.id))
+      // Stable daily shuffle so the pick feels fresh each day
+      .sort((a, b) => hashStr(a.id + today) - hashStr(b.id + today));
+
+    const picked = pool[0];
+    if (picked) {
+      if (cards[picked.id]) {
+        topicPickReview = [picked];
+      } else {
+        topicPickNew = [picked];
+      }
+    }
+  }
+
+  // ─── Bonus reviews from past topics (no specific topic selected) ──────────
+  // When no completed-topic filter is active, surface 2 soonest-due past cards
+  // as light daily reinforcement.
   const touchedTopics = new Set<string>();
   for (const c of Object.values(cards)) {
     if (c.totalReviews > 0) {
@@ -98,36 +126,35 @@ export function buildDailyQueue(args: {
   }
 
   const inQueueOrDone = new Set([
-    ...newDoneToday,
-    ...reviewDoneToday,
-    ...reviewCards.map((p) => p.id),
+    ...alreadyShown,
+    ...topicPickNew.map((p) => p.id),
+    ...topicPickReview.map((p) => p.id),
   ]);
 
-  // When a completed topic is selected, focus bonus reviews on that topic.
-  const bonusTopicFilter = topicFilter && !filterHasNew ? topicFilter : null;
-
-  const bonusReviews = PROBLEMS.filter((p) => {
-    const c = cards[p.id];
-    return (
-      touchedTopics.has(p.topic) &&
-      c &&
-      !isNew(c) &&
-      !isDue(c, today) &&
-      !inQueueOrDone.has(p.id) &&
-      !skipped.has(p.id) &&
-      (!bonusTopicFilter || p.topic === bonusTopicFilter)
-    );
-  })
-    .sort((a, b) => {
-      const da = cards[a.id]?.dueDate ?? '9999-99-99';
-      const db = cards[b.id]?.dueDate ?? '9999-99-99';
-      return da.localeCompare(db);
-    })
-    .slice(0, 2);
+  const bonusReviews =
+    topicFilter && !filterHasNew
+      ? [] // topic pick handles this case
+      : PROBLEMS.filter((p) => {
+          const c = cards[p.id];
+          return (
+            touchedTopics.has(p.topic) &&
+            c &&
+            !isNew(c) &&
+            !isDue(c, today) &&
+            !inQueueOrDone.has(p.id) &&
+            !skipped.has(p.id)
+          );
+        })
+          .sort((a, b) => {
+            const da = cards[a.id]?.dueDate ?? '9999-99-99';
+            const db = cards[b.id]?.dueDate ?? '9999-99-99';
+            return da.localeCompare(db);
+          })
+          .slice(0, 2);
 
   return {
-    newCards,
-    reviewCards: [...reviewCards, ...bonusReviews],
+    newCards: [...newCards, ...topicPickNew],
+    reviewCards: [...reviewCards, ...topicPickReview, ...bonusReviews],
     newDoneCount: newDoneToday.size,
     reviewDoneCount: reviewDoneToday.size,
     newTarget: profile.newPerDay,
