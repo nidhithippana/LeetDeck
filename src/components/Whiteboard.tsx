@@ -1,12 +1,12 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { ArrowUpRight, Circle, Eraser, MousePointer2, Pencil, Square, Trash2, Type } from 'lucide-react';
+import { ArrowUpRight, Circle, Eraser, MousePointer2, Pencil, RotateCw, Square, Trash2, Type } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type WhiteboardHandle = { getImageDataUrl: () => string; isEmpty: () => boolean };
 type Props = { storageKey?: string };
 
-type TextElement   = { id: string; type: 'text';   x: number; y: number; width: number; height: number; value: string; fontSize: number; color: string };
+type TextElement   = { id: string; type: 'text';   x: number; y: number; width: number; height: number; value: string; fontSize: number; color: string; rotation: number };
 type RectElement   = { id: string; type: 'rect';   x: number; y: number; width: number; height: number; color: string; sw: number };
 type CircleElement = { id: string; type: 'circle'; x: number; y: number; width: number; height: number; color: string; sw: number };
 type ArrowElement  = { id: string; type: 'arrow';  x: number; y: number; x2: number; y2: number; color: string; sw: number };
@@ -31,7 +31,7 @@ const COLORS = [
   { value: '#f59e0b', label: 'Amber' },
 ];
 const SIZES = [{ value: 2, label: 'S' }, { value: 5, label: 'M' }, { value: 11, label: 'L' }];
-const FONT_SIZES: Record<number, number> = { 2: 13, 5: 18, 11: 26 };
+
 const STROKE_W:   Record<number, number> = { 2: 1.5, 5: 3, 11: 5.5 };
 const HANDLE_PX = 9;
 const H2 = HANDLE_PX / 2;
@@ -203,9 +203,13 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     });
   };
 
+  const textHeightForSize = (s: number) => ({ 2: 60, 5: 80, 11: 120 } as Record<number,number>)[s] ?? 80;
+  const fontSizeFromHeight = (h: number) => Math.max(8, Math.round(h * 0.225));
+
   const createText = (cssX: number, cssY: number) => {
     const id = newId();
-    setElements(prev => [...prev, { id, type:'text', x:cssX, y:cssY, width:200, height:80, value:'', fontSize: FONT_SIZES[size]??18, color } as TextElement]);
+    const height = textHeightForSize(size);
+    setElements(prev => [...prev, { id, type:'text', x:cssX, y:cssY, width:200, height, value:'', fontSize: fontSizeFromHeight(height), color, rotation: 0 } as TextElement]);
     setActiveTextId(id);
   };
 
@@ -233,8 +237,23 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
         if (handle.includes('s')) height = Math.max(40, oh + dy);
         if (handle.includes('w')) { x = ox + dx; width  = Math.max(80, ow - dx); }
         if (handle.includes('n')) { y = oy + dy; height = Math.max(40, oh - dy); }
-        return { ...t, x, y, width, height };
+        const fontSize = Math.max(8, Math.round(height * 0.225));
+        return { ...t, x, y, width, height, fontSize };
       }));
+    };
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+  };
+
+  const startTextRotate = (e: React.MouseEvent, id: string) => {
+    e.preventDefault(); e.stopPropagation();
+    const el = elements.find(t => t.id === id) as TextElement;
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const cx = rect.left + el.x + el.width / 2;
+    const cy = rect.top  + el.y + el.height / 2;
+    const onMove = (ev: MouseEvent) => {
+      const angle = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI + 90;
+      setElements(prev => prev.map(t => t.id === id ? { ...t, rotation: Math.round(angle) } : t));
     };
     const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
@@ -521,9 +540,14 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
           const te = el as TextElement;
           if (!te.value.trim()) return;
           const fs = te.fontSize * sy;
+          const cx = (te.x + te.width/2) * sx, cy = (te.y + te.height/2) * sy;
+          const rot = (te.rotation ?? 0) * Math.PI / 180;
+          ctx.save();
+          ctx.translate(cx, cy); ctx.rotate(rot); ctx.translate(-cx, -cy);
           ctx.font=`${fs}px sans-serif`; ctx.fillStyle=te.color;
           const pad=8*sx, lineH=fs*1.4, maxW=(te.width-16)*sx;
           te.value.split('\n').forEach((line,i)=>ctx.fillText(line, te.x*sx+pad, te.y*sy+(i+1)*lineH, maxW));
+          ctx.restore();
         }
       });
       return off.toDataURL('image/png');
@@ -707,12 +731,35 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
         {elements.filter(e => e.type === 'text').map(el => {
           const te = el as TextElement;
           const isActive = te.id === activeTextId;
+          const rot = te.rotation ?? 0;
           return (
             <div key={te.id} data-text-el
-              style={{ position:'absolute', left:te.x, top:te.y, zIndex:25, userSelect:'none' }}
-              onMouseDown={e => { e.stopPropagation(); setActiveTextId(te.id); startTextDrag(e, te.id); }}>
-              <div style={{ position:'relative', width:te.width, height:te.height, cursor:'move' }}
-                className={isActive ? 'border-2 border-dashed border-slate-400' : ''}>
+              style={{
+                position: 'absolute', left: te.x, top: te.y,
+                width: te.width, height: te.height,
+                zIndex: 25, userSelect: 'none', overflow: 'visible',
+                transform: `rotate(${rot}deg)`,
+                transformOrigin: 'center center',
+              }}
+              onMouseDown={e => { e.stopPropagation(); setActiveTextId(te.id); startTextDrag(e, te.id); }}
+            >
+              {/* Rotation handle */}
+              {isActive && (
+                <div
+                  style={{ position:'absolute', top:-36, left:'50%', transform:'translateX(-50%)', display:'flex', flexDirection:'column', alignItems:'center', cursor:'grab', zIndex:35 }}
+                  onMouseDown={e => startTextRotate(e, te.id)}
+                >
+                  <div style={{ width:1, height:22, background:'#6366f1', opacity:0.5 }} />
+                  <div style={{ width:14, height:14, borderRadius:'50%', background:'#6366f1', border:'2px solid white', boxShadow:'0 0 0 1.5px #6366f1', display:'flex', alignItems:'center', justifyContent:'center', marginTop:-1 }}>
+                    <RotateCw size={8} color="white" />
+                  </div>
+                </div>
+              )}
+
+              {/* Text box */}
+              <div style={{ position:'relative', width:'100%', height:'100%', cursor:'move' }}
+                className={isActive ? 'border-2 border-dashed border-indigo-400' : ''}
+              >
                 {isActive ? (
                   <textarea autoFocus value={te.value}
                     onChange={e => setElements(prev => prev.map(t => t.id===te.id ? {...t, value:e.target.value} : t))}
@@ -730,8 +777,10 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
                   <div key={h} style={textHandleStyle(h, te.width, te.height)} onMouseDown={e => startTextResize(e, te.id, h)} />
                 ))}
               </div>
+
+              {/* Delete button */}
               {isActive && (
-                <div style={{ position:'absolute', top:te.height+6, left:'50%', transform:'translateX(-50%)' }}>
+                <div style={{ position:'absolute', top:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)', whiteSpace:'nowrap' }}>
                   <button onMouseDown={e => { e.stopPropagation(); deleteElement(te.id); }}
                     className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-rose-50 hover:text-rose-500 bg-white border border-slate-200 shadow-sm">
                     <Trash2 size={10}/> Delete
