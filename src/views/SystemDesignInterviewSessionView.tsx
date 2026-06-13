@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Loader2,
@@ -10,11 +10,20 @@ import {
   CheckCircle2,
   XCircle,
   Lightbulb,
+  Timer,
 } from 'lucide-react';
 import Whiteboard, { type WhiteboardHandle } from '../components/Whiteboard';
 import { reviewDesign, getAIKey, type ReviewFeedback } from '../lib/claudeReview';
 import { INTERVIEW_QUESTIONS } from '../data/interviewQuestions';
 import { usePageTitle } from '../lib/usePageTitle';
+
+const PRESET_MINUTES = [20, 30, 45, 60];
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -81,11 +90,133 @@ export default function SystemDesignInterviewSessionView({
   const [error, setError] = useState<string | null>(null);
   const [promptCollapsed, setPromptCollapsed] = useState(false);
 
+  // null = showing picker, 0 = no timer, >0 = minutes chosen
+  const [timerMinutes, setTimerMinutes] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [timerExpired, setTimerExpired] = useState(false);
+  const [customInput, setCustomInput] = useState('');
+
+  useEffect(() => {
+    if (!timerMinutes || timeLeft <= 0) return;
+    const t = window.setTimeout(() => {
+      setTimeLeft((prev) => {
+        const next = Math.max(0, prev - 1);
+        if (next === 0) setTimerExpired(true);
+        return next;
+      });
+    }, 1000);
+    return () => window.clearTimeout(t);
+  }, [timeLeft, timerMinutes]);
+
   usePageTitle(question ? `Interview: ${question.title}` : 'Interview');
 
   if (!question) {
     onBack();
     return null;
+  }
+
+  const startWithTimer = (minutes: number) => {
+    setTimerMinutes(minutes);
+    setTimeLeft(minutes * 60);
+    setTimerExpired(false);
+  };
+
+  const timerColor =
+    timerMinutes && timeLeft <= 60
+      ? 'text-rose-600 dark:text-rose-400'
+      : timerMinutes && timeLeft <= 300
+        ? 'text-amber-600 dark:text-amber-400'
+        : 'text-slate-600 dark:text-slate-300';
+
+  // ── Time picker screen ───────────────────────────────────────────────────
+  if (timerMinutes === null) {
+    const customMinutes = parseInt(customInput, 10);
+    const customValid = customMinutes > 0 && customMinutes <= 180;
+    return (
+      <div className="flex h-screen flex-col bg-slate-50 dark:bg-slate-950">
+        <header className="shrink-0 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <button
+              onClick={onBack}
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <ArrowLeft size={16} /> Interview
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-700 dark:bg-violet-900/50 dark:text-violet-300">
+                {question.category}
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                  question.difficulty === 'Easy'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                    : question.difficulty === 'Medium'
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                      : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                }`}
+              >
+                {question.difficulty}
+              </span>
+              <span className="hidden text-sm font-semibold text-slate-800 dark:text-slate-200 sm:block">
+                {question.title}
+              </span>
+            </div>
+            <div className="w-24" />
+          </div>
+        </header>
+
+        <div className="flex flex-1 items-center justify-center px-6">
+          <div className="w-full max-w-sm space-y-6 text-center">
+            <div>
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/40">
+                <Timer size={22} className="text-violet-600 dark:text-violet-400" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Set your timer</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">How long do you have for this question?</p>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
+              {PRESET_MINUTES.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => startWithTimer(m)}
+                  className="rounded-lg border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 transition hover:border-violet-400 hover:bg-violet-50 hover:text-violet-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-violet-500 dark:hover:bg-violet-950/40 dark:hover:text-violet-300"
+                >
+                  {m}m
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={180}
+                placeholder="Custom"
+                value={customInput}
+                onChange={(e) => setCustomInput(e.target.value)}
+                className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-center text-sm text-slate-700 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+              />
+              <span className="text-sm text-slate-400">min</span>
+              <button
+                onClick={() => customValid && startWithTimer(customMinutes)}
+                disabled={!customValid}
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Start
+              </button>
+            </div>
+
+            <button
+              onClick={() => setTimerMinutes(0)}
+              className="text-sm text-slate-400 underline underline-offset-2 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              No timer, just start
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const hasKey = !!getAIKey();
@@ -150,7 +281,14 @@ export default function SystemDesignInterviewSessionView({
               {question.title}
             </span>
           </div>
-          <div className="w-24" />
+          {timerMinutes ? (
+            <div className={`flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums ${timerColor}`}>
+              <Timer size={14} />
+              {formatTime(timeLeft)}
+            </div>
+          ) : (
+            <div className="w-24" />
+          )}
         </div>
       </header>
 
@@ -295,6 +433,12 @@ export default function SystemDesignInterviewSessionView({
 
           {/* Submit bar */}
           <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+            {timerExpired && (
+              <div className="mb-2 flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
+                <Timer size={14} className="shrink-0" />
+                Time's up! Submit when you're ready.
+              </div>
+            )}
             {error && (
               <div className="mb-2 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
                 <AlertCircle size={14} className="mt-0.5 shrink-0" />
