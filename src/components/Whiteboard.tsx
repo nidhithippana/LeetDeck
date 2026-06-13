@@ -6,6 +6,10 @@ export type WhiteboardHandle = {
   isEmpty: () => boolean;
 };
 
+type Props = {
+  storageKey?: string;
+};
+
 const COLORS = [
   { value: '#1e293b', label: 'Black' },
   { value: '#6366f1', label: 'Indigo' },
@@ -21,13 +25,14 @@ const SIZES = [
   { value: 11, label: 'L' },
 ];
 
-const Whiteboard = forwardRef<WhiteboardHandle>(function Whiteboard(_, ref) {
+const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ storageKey }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [color, setColor] = useState(COLORS[0].value);
   const [size, setSize] = useState(SIZES[1].value);
   const [hasContent, setHasContent] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const drawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
 
@@ -38,7 +43,25 @@ const Whiteboard = forwardRef<WhiteboardHandle>(function Whiteboard(_, ref) {
     if (!ctx) return;
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }, []);
+
+    if (storageKey) {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0);
+          setHasContent(true);
+        };
+        img.src = saved;
+      }
+    }
+  }, [storageKey]);
+
+  const saveToStorage = () => {
+    if (storageKey && canvasRef.current) {
+      localStorage.setItem(storageKey, canvasRef.current.toDataURL('image/png'));
+    }
+  };
 
   const getPos = (
     e:
@@ -91,17 +114,21 @@ const Whiteboard = forwardRef<WhiteboardHandle>(function Whiteboard(_, ref) {
   };
 
   const stopDrawing = () => {
+    if (!drawing.current) return;
     drawing.current = false;
     lastPos.current = null;
+    saveToStorage();
   };
 
-  const clearCanvas = () => {
+  const handleClearConfirmed = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     setHasContent(false);
+    if (storageKey) localStorage.removeItem(storageKey);
+    setConfirmClear(false);
   };
 
   useImperativeHandle(ref, () => ({
@@ -179,7 +206,7 @@ const Whiteboard = forwardRef<WhiteboardHandle>(function Whiteboard(_, ref) {
         <div className="flex-1" />
 
         <button
-          onClick={clearCanvas}
+          onClick={() => setConfirmClear(true)}
           title="Clear whiteboard"
           className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-600 transition hover:bg-rose-50 hover:text-rose-600 dark:text-slate-300 dark:hover:bg-rose-950/30 dark:hover:text-rose-400"
         >
@@ -218,6 +245,40 @@ const Whiteboard = forwardRef<WhiteboardHandle>(function Whiteboard(_, ref) {
           </div>
         )}
       </div>
+
+      {/* Clear confirmation dialog */}
+      {confirmClear && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
+          onClick={() => setConfirmClear(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-1 text-base font-bold text-slate-900 dark:text-slate-100">
+              Clear whiteboard?
+            </h3>
+            <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">
+              This will erase everything on the canvas. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmClear(false)}
+                className="rounded-md px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearConfirmed}
+                className="rounded-md bg-rose-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-rose-700"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

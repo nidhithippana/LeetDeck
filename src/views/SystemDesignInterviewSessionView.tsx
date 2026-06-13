@@ -579,7 +579,7 @@ export default function SystemDesignInterviewSessionView({
 
           {/* Whiteboard */}
           <div className="min-h-0 flex-1">
-            <Whiteboard ref={whiteboardRef} />
+            <Whiteboard ref={whiteboardRef} storageKey={`leetdeck.whiteboard.${questionId}`} />
           </div>
 
           {/* Submit bar */}
