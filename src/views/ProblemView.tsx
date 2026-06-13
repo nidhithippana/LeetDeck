@@ -80,7 +80,7 @@ export default function ProblemView({
   usePageTitle(problem.title);
 
   const [code, setCode] = useState(() =>
-    loadDraft(problem.id, language, langConfig.starterCode)
+    kind === 'review' ? langConfig.starterCode : loadDraft(problem.id, language, langConfig.starterCode)
   );
   const [result, setResult] = useState<TestRunResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -93,11 +93,12 @@ export default function ProblemView({
   const handleScrollUp = () => editorRef.current?.scrollUp();
   const handleScrollDown = () => editorRef.current?.scrollDown();
 
-  // Reset draft + result when language or problem changes.
+  // Reset code + result when language or problem changes.
+  // Reviews always start from starter code so past solutions don't show through.
   useEffect(() => {
-    setCode(loadDraft(problem.id, language, langConfig.starterCode));
+    setCode(kind === 'review' ? langConfig.starterCode : loadDraft(problem.id, language, langConfig.starterCode));
     setResult(null);
-  }, [problem.id, language, langConfig.starterCode]);
+  }, [problem.id, language, langConfig.starterCode, kind]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
