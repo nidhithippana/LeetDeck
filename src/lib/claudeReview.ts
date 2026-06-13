@@ -1,17 +1,16 @@
 const AI_KEY_STORAGE = 'leetdeck.ai.key';
 
 export function getAIKey(): string {
-  // Env var takes priority — set VITE_GEMINI_API_KEY in .env
-  const envKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-  if (envKey) return envKey;
   if (typeof window === 'undefined') return '';
-  // Fall back to manually entered key stored in localStorage
+  // User-entered key in Settings always takes priority over env var
   const legacy = window.localStorage.getItem('leetdeck.anthropic.key');
   const current = window.localStorage.getItem(AI_KEY_STORAGE);
   if (legacy && !current) {
     window.localStorage.setItem(AI_KEY_STORAGE, legacy);
   }
-  return current ?? legacy ?? '';
+  const stored = current ?? legacy ?? '';
+  if (stored) return stored;
+  return (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) ?? '';
 }
 
 export function saveAIKey(key: string) {
