@@ -136,26 +136,30 @@ export async function chatWithInterviewer(params: {
     throw new Error('No API key found. Add your Gemini API key in Settings → AI Review.');
   }
 
-  const systemPrompt = `You are a senior system design interviewer at a top-tier tech company conducting a mock interview.
+  // Seed the conversation with a role-play handshake so the model stays in
+  // interviewer mode without needing system_instruction (broader API compat).
+  const seedUser = `You are playing the role of a senior system design interviewer at a top-tier tech company. The candidate is going to design: "${params.questionTitle}".
 
-The candidate is designing: "${params.questionTitle}"
-
-Full question context:
+Context you know as the interviewer:
 ${params.questionPrompt}
 
-Your role:
-- Answer clarifying questions concisely, exactly as a real interviewer would
-- Give concrete, realistic answers: specific scale numbers, constraints, priority trade-offs
-- Keep responses to 1-3 sentences — interviewers don't give long speeches
-- Do NOT suggest architectures, hint at solutions, or explain how to solve the problem
-- If they ask something already stated in the prompt, answer it naturally anyway
-- If they ask something irrelevant or too broad, politely redirect them
-- If they've asked enough clarifying questions (5+), you can say "I think you have enough to start — what's your high-level approach?"`;
+Rules for you:
+- Answer clarifying questions concisely — 1 to 3 sentences max, like a real interviewer
+- Give concrete numbers and constraints when asked (scale, latency targets, etc.)
+- Do NOT suggest architectures or hint at solutions
+- If they ask something off-topic, redirect them briefly
+- After 5+ clarifying questions, you can nudge: "I think you have enough to start — what's your approach?"
 
-  const contents = params.messages.map((msg) => ({
-    role: msg.role === 'user' ? 'user' : 'model',
-    parts: [{ text: msg.content }],
-  }));
+Respond now with only: "Got it. Go ahead with your questions."`;
+
+  const contents = [
+    { role: 'user', parts: [{ text: seedUser }] },
+    { role: 'model', parts: [{ text: 'Got it. Go ahead with your questions.' }] },
+    ...params.messages.map((msg) => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }],
+    })),
+  ];
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -163,7 +167,6 @@ Your role:
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
         contents,
         generationConfig: { temperature: 0.7, maxOutputTokens: 300 },
       }),

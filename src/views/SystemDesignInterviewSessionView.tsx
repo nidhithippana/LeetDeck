@@ -280,8 +280,9 @@ export default function SystemDesignInterviewSessionView({
         messages: newMessages,
       });
       setChatMessages([...newMessages, { role: 'ai', content: reply }]);
-    } catch {
-      setChatMessages([...newMessages, { role: 'ai', content: 'Sorry, I had trouble responding. Check your API key in Settings.' }]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setChatMessages([...newMessages, { role: 'ai', content: `Error: ${msg}` }]);
     } finally {
       setChatLoading(false);
     }
