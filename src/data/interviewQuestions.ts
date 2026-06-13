@@ -590,4 +590,74 @@ export const INTERVIEW_QUESTIONS: InterviewQuestion[] = [
 
 **Discuss:** the order book data structure (price-time priority queue), the matching engine as a single-threaded sequential processor (why this is intentional), market data distribution via pub/sub, portfolio valuation as a separate read path, risk checks before order submission, and regulatory audit logging.`,
   },
+
+  // ─── E-Commerce & Finance (continued) ────────────────────────────────────
+  {
+    id: 'iq-ticketmaster',
+    title: 'Design Ticketmaster',
+    category: 'E-Commerce & Finance',
+    difficulty: 'Medium',
+    prompt: `Design an online ticket booking platform for live events like Ticketmaster or StubHub.
+
+**Functional requirements:**
+- Users can browse events by city, date, and category
+- View an interactive seat map and select available seats
+- Reserve and purchase tickets (with payment)
+- Receive ticket confirmation (PDF/QR code)
+- Sellers can list events and set seat pricing tiers
+
+**Non-functional requirements:**
+- 50M users, 500K events per year
+- High concurrency during "hot drops" (e.g., Taylor Swift): 100K concurrent users trying to buy the same seats in the first 60 seconds
+- No double booking — two users cannot buy the same seat
+- 99.99% availability during peak events
+
+**Discuss:** seat reservation locking strategy (optimistic vs. pessimistic, short-lived holds), the booking state machine (browsing → held → payment → confirmed → expired), handling the thundering herd during hot drops (virtual waiting room queue, token-based access), seat map storage and real-time availability, payment integration, and ticket delivery via barcode/QR.`,
+  },
+  {
+    id: 'iq-leetcode',
+    title: 'Design an Online Code Judge',
+    category: 'Infrastructure',
+    difficulty: 'Medium',
+    prompt: `Design an online coding practice platform like LeetCode or HackerRank.
+
+**Functional requirements:**
+- Users browse problems by difficulty, topic, and company tag
+- Write and submit code in multiple languages (Python, Java, C++, JavaScript)
+- System runs code against hidden test cases and returns verdict (Accepted, Wrong Answer, Time Limit Exceeded, Runtime Error)
+- Track which problems a user has solved; show global and contest rankings
+- After solving, users can view editorials and discuss solutions
+
+**Non-functional requirements:**
+- 5M active users, 10M code submissions per day
+- Verdict must be returned within 5 seconds for most problems
+- Code execution must be sandboxed — user code cannot affect other users or the host system
+- Support problems with up to 1,000 hidden test cases
+
+**Discuss:** sandboxed code execution (Docker/gVisor/isolate), resource limiting (CPU time, memory, process isolation), the judge pipeline (compile → run N test cases → aggregate verdict), horizontal scaling of execution workers, test case storage and distribution to workers, result caching (identical submissions), problem metadata service, and anti-cheat/plagiarism detection.`,
+  },
+
+  // ─── Search & Discovery (continued) ──────────────────────────────────────
+  {
+    id: 'iq-post-search',
+    title: 'Design Facebook Post Search',
+    category: 'Search & Discovery',
+    difficulty: 'Hard',
+    prompt: `Design a full-text search feature for a social network, like Facebook's post search or Twitter's search.
+
+**Functional requirements:**
+- Users can search for posts, comments, and people by keyword
+- Results are filtered by the searcher's privacy permissions (cannot see private posts from non-friends)
+- Results are ranked by relevance AND social signals (posts from friends rank higher)
+- New posts should be searchable within seconds of being published
+- Support filters: date range, post type (photo/video/link), author
+
+**Non-functional requirements:**
+- 500M new posts per day
+- 1B users, 5T posts in the total index
+- Search query latency < 500ms including privacy filtering
+- 100M search queries per day
+
+**Discuss:** indexing pipeline (Kafka → stream processing → inverted index update), the privacy challenge (why post-retrieval filtering is expensive and how to bake permissions into the index), personalized ranking (social graph signals: post is from a friend? mutuals? engaged with recently?), sharding the index (by user ID vs. post ID vs. time), handling index freshness for near-real-time indexing, and the difference between a social search ranking model vs. a web search ranking model.`,
+  },
 ];

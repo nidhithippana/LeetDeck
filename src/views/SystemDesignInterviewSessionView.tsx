@@ -11,9 +11,11 @@ import {
   XCircle,
   Lightbulb,
   Timer,
+  Send,
+  MessageSquare,
 } from 'lucide-react';
 import Whiteboard, { type WhiteboardHandle } from '../components/Whiteboard';
-import { reviewDesign, getAIKey, type ReviewFeedback } from '../lib/claudeReview';
+import { reviewDesign, chatWithInterviewer, getAIKey, type ReviewFeedback, type ChatMessage } from '../lib/claudeReview';
 import { INTERVIEW_QUESTIONS } from '../data/interviewQuestions';
 import { usePageTitle } from '../lib/usePageTitle';
 
@@ -83,6 +85,7 @@ export default function SystemDesignInterviewSessionView({
 }) {
   const question = INTERVIEW_QUESTIONS.find((q) => q.id === questionId);
   const whiteboardRef = useRef<WhiteboardHandle>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -90,7 +93,15 @@ export default function SystemDesignInterviewSessionView({
   const [error, setError] = useState<string | null>(null);
   const [promptCollapsed, setPromptCollapsed] = useState(false);
 
-  // null = showing picker, 0 = no timer, >0 = minutes chosen
+  // Left panel tabs
+  const [leftTab, setLeftTab] = useState<'clarify' | 'feedback'>('clarify');
+
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+
+  // Timer state
   const [timerMinutes, setTimerMinutes] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [timerExpired, setTimerExpired] = useState(false);
@@ -108,12 +119,18 @@ export default function SystemDesignInterviewSessionView({
     return () => window.clearTimeout(t);
   }, [timeLeft, timerMinutes]);
 
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, chatLoading]);
+
   usePageTitle(question ? `Interview: ${question.title}` : 'Interview');
 
   if (!question) {
     onBack();
     return null;
   }
+
+  const hasKey = !!getAIKey();
 
   const startWithTimer = (minutes: number) => {
     setTimerMinutes(minutes);
@@ -219,16 +236,12 @@ export default function SystemDesignInterviewSessionView({
     );
   }
 
-  const hasKey = !!getAIKey();
-
   const handleSubmit = async () => {
     setSubmitting(true);
     setError(null);
     try {
       const wb = whiteboardRef.current;
-      const imageDataUrl =
-        wb && !wb.isEmpty() ? wb.getImageDataUrl() : null;
-
+      const imageDataUrl = wb && !wb.isEmpty() ? wb.getImageDataUrl() : null;
       const result = await reviewDesign({
         questionTitle: question.title,
         questionPrompt: question.prompt,
@@ -237,6 +250,7 @@ export default function SystemDesignInterviewSessionView({
       });
       setFeedback(result);
       setPromptCollapsed(true);
+      setLeftTab('feedback');
       if (result.score > 0) onMarkCompleted(result.score);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -249,6 +263,28 @@ export default function SystemDesignInterviewSessionView({
     setFeedback(null);
     setError(null);
     setPromptCollapsed(false);
+    setLeftTab('clarify');
+  };
+
+  const handleSendChat = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg = chatInput.trim();
+    setChatInput('');
+    const newMessages: ChatMessage[] = [...chatMessages, { role: 'user', content: userMsg }];
+    setChatMessages(newMessages);
+    setChatLoading(true);
+    try {
+      const reply = await chatWithInterviewer({
+        questionTitle: question.title,
+        questionPrompt: question.prompt,
+        messages: newMessages,
+      });
+      setChatMessages([...newMessages, { role: 'ai', content: reply }]);
+    } catch {
+      setChatMessages([...newMessages, { role: 'ai', content: 'Sorry, I had trouble responding. Check your API key in Settings.' }]);
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   return (
@@ -294,19 +330,19 @@ export default function SystemDesignInterviewSessionView({
 
       {/* Body */}
       <div className="flex min-h-0 flex-1">
-        {/* Left panel — Question + Feedback */}
-        <div className="flex w-5/12 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        {/* Left panel */}
+        <div className="flex w-5/12 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           {/* Question prompt */}
-          <div className="border-b border-slate-200 p-5 dark:border-slate-800">
+          <div className="shrink-0 border-b border-slate-200 p-4 dark:border-slate-800">
             <button
               onClick={() => setPromptCollapsed((v) => !v)}
-              className="mb-3 flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400"
+              className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400"
             >
               <span>Question</span>
               {promptCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
             </button>
             {!promptCollapsed && (
-              <div className="prose prose-sm max-w-none text-slate-700 dark:text-slate-300">
+              <div className="prose prose-sm mt-3 max-w-none text-slate-700 dark:text-slate-300">
                 <h2 className="mb-3 text-lg font-bold text-slate-900 dark:text-slate-100">
                   {question.title}
                 </h2>
@@ -345,67 +381,166 @@ export default function SystemDesignInterviewSessionView({
             )}
           </div>
 
-          {/* AI Feedback */}
-          {feedback && (
-            <div className="flex-1 space-y-5 overflow-y-auto p-5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">
-                  <Sparkles size={13} /> AI Feedback
-                </div>
-                {feedback.score > 0 && <ScoreBadge score={feedback.score} />}
+          {/* Tab bar */}
+          <div className="flex shrink-0 border-b border-slate-200 dark:border-slate-800">
+            <button
+              onClick={() => setLeftTab('clarify')}
+              className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold uppercase tracking-wider transition ${
+                leftTab === 'clarify'
+                  ? 'border-b-2 border-violet-500 text-violet-600 dark:text-violet-400'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+            >
+              <MessageSquare size={12} />
+              Ask Interviewer
+            </button>
+            <button
+              onClick={() => feedback && setLeftTab('feedback')}
+              disabled={!feedback}
+              className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold uppercase tracking-wider transition ${
+                leftTab === 'feedback' && feedback
+                  ? 'border-b-2 border-violet-500 text-violet-600 dark:text-violet-400'
+                  : feedback
+                    ? 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    : 'cursor-not-allowed text-slate-300 dark:text-slate-600'
+              }`}
+            >
+              <Sparkles size={12} />
+              AI Feedback
+            </button>
+          </div>
+
+          {/* Tab content */}
+          {leftTab === 'clarify' ? (
+            <div className="flex min-h-0 flex-1 flex-col">
+              {/* Messages */}
+              <div className="flex-1 space-y-3 overflow-y-auto p-4">
+                {chatMessages.length === 0 && (
+                  <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-center dark:border-slate-800 dark:bg-slate-800/40">
+                    <MessageSquare size={18} className="mx-auto mb-1.5 text-slate-400" />
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Ask the interviewer clarifying questions — scope, scale, constraints, priorities.
+                    </p>
+                  </div>
+                )}
+                {chatMessages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed ${
+                        msg.role === 'user'
+                          ? 'bg-violet-600 text-white'
+                          : 'border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div className="flex justify-start">
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+                      <Loader2 size={12} className="animate-spin text-slate-400" />
+                      <span className="text-xs text-slate-400">Interviewer is typing…</span>
+                    </div>
+                  </div>
+                )}
+                <div ref={chatBottomRef} />
               </div>
 
-              {feedback.summary && (
-                <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                  {feedback.summary}
-                </p>
+              {/* Chat input */}
+              <div className="shrink-0 border-t border-slate-200 p-3 dark:border-slate-800">
+                {!hasKey && (
+                  <p className="mb-2 text-[11px] text-amber-600 dark:text-amber-400">
+                    Add your Gemini API key in{' '}
+                    <button onClick={onOpenSettings} className="underline">Settings</button>{' '}
+                    to enable chat.
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && void handleSendChat()}
+                    placeholder="Ask a clarifying question…"
+                    disabled={!hasKey || chatLoading}
+                    className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-500"
+                  />
+                  <button
+                    onClick={() => void handleSendChat()}
+                    disabled={!hasKey || chatLoading || !chatInput.trim()}
+                    className="flex items-center justify-center rounded-lg bg-violet-600 px-3 py-2 text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Send size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+              {feedback && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">
+                      <Sparkles size={13} /> AI Feedback
+                    </div>
+                    {feedback.score > 0 && <ScoreBadge score={feedback.score} />}
+                  </div>
+
+                  {feedback.summary && (
+                    <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      {feedback.summary}
+                    </p>
+                  )}
+
+                  <FeedbackSection
+                    icon={<CheckCircle2 size={12} />}
+                    title="Strengths"
+                    items={feedback.strengths}
+                    color="text-emerald-600 dark:text-emerald-400"
+                  />
+                  <FeedbackSection
+                    icon={<XCircle size={12} />}
+                    title="Gaps"
+                    items={feedback.gaps}
+                    color="text-rose-600 dark:text-rose-400"
+                  />
+                  <FeedbackSection
+                    icon={<Lightbulb size={12} />}
+                    title="Suggestions"
+                    items={feedback.suggestions}
+                    color="text-amber-600 dark:text-amber-400"
+                  />
+
+                  <button
+                    onClick={handleReset}
+                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white py-2 text-sm font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    Try Again
+                  </button>
+                </>
               )}
 
-              <FeedbackSection
-                icon={<CheckCircle2 size={12} />}
-                title="Strengths"
-                items={feedback.strengths}
-                color="text-emerald-600 dark:text-emerald-400"
-              />
-              <FeedbackSection
-                icon={<XCircle size={12} />}
-                title="Gaps"
-                items={feedback.gaps}
-                color="text-rose-600 dark:text-rose-400"
-              />
-              <FeedbackSection
-                icon={<Lightbulb size={12} />}
-                title="Suggestions"
-                items={feedback.suggestions}
-                color="text-amber-600 dark:text-amber-400"
-              />
-
-              <button
-                onClick={handleReset}
-                className="mt-2 w-full rounded-lg border border-slate-200 bg-white py-2 text-sm font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              >
-                Try Again
-              </button>
-            </div>
-          )}
-
-          {!feedback && !hasKey && (
-            <div className="p-5">
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
-                <div className="flex items-start gap-2">
-                  <AlertCircle size={15} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                  <div className="text-sm text-amber-800 dark:text-amber-300">
-                    <strong className="font-semibold">No API key set.</strong> Add your Anthropic API key in{' '}
-                    <button
-                      onClick={onOpenSettings}
-                      className="underline underline-offset-2 hover:no-underline"
-                    >
-                      Settings → AI Review
-                    </button>{' '}
-                    to get AI feedback on your designs.
+              {!hasKey && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle size={15} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <div className="text-sm text-amber-800 dark:text-amber-300">
+                      <strong className="font-semibold">No API key set.</strong> Add your Gemini API key in{' '}
+                      <button
+                        onClick={onOpenSettings}
+                        className="underline underline-offset-2 hover:no-underline"
+                      >
+                        Settings → AI Review
+                      </button>{' '}
+                      to get AI feedback.
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -452,7 +587,7 @@ export default function SystemDesignInterviewSessionView({
                   : 'Write your response and draw a diagram, then submit for AI review.'}
               </p>
               <button
-                onClick={handleSubmit}
+                onClick={() => void handleSubmit()}
                 disabled={submitting || (!text.trim() && !!whiteboardRef.current?.isEmpty())}
                 className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
