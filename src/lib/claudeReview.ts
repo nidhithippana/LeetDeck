@@ -29,12 +29,19 @@ async function openaiRequest(apiKey: string, body: object): Promise<Response> {
   });
 }
 
+export type StepCoverage = {
+  step: string;
+  covered: 'yes' | 'partial' | 'missing';
+  note: string;
+};
+
 export type ReviewFeedback = {
   score: number;
   strengths: string[];
   gaps: string[];
   suggestions: string[];
   summary: string;
+  frameworkCoverage?: StepCoverage[];
 };
 
 export async function reviewDesign(params: {
@@ -62,21 +69,36 @@ ${params.textResponse?.trim() || '(No written response provided)'}
 ---
 ${params.imageDataUrl ? 'The candidate also drew a system design diagram (attached image).' : 'The candidate did not draw a diagram.'}
 
-Evaluate their response on these criteria:
-1. Requirements gathering (did they clarify scope?)
-2. Architecture completeness (are the right components present?)
-3. Scalability and performance considerations
-4. Data storage and schema design
-5. Handling failures and edge cases
-6. Communication clarity and structure
+Evaluate their response against the standard SD interview framework. For each of the 6 steps, rate coverage as:
+- "yes" = clearly and specifically addressed
+- "partial" = mentioned but shallow or incomplete
+- "missing" = not addressed at all
+
+The 6 framework steps:
+1. Functional requirements — listed 2-3 core operations as verbs, explicitly parked out-of-scope items
+2. Non-functional requirements — addressed consistency vs availability, latency target, scale (users/QPS), durability — located where each property applies
+3. Core entities & API — defined the data objects (nouns) and endpoints with request/response shapes
+4. High-level design — described a clear happy-path flow (Client → entry point → service → storage) for each core operation
+5. Deep dive — identified the hard part of this specific problem (e.g. ID generation, fan-out, ranking, dedup, consistency) and presented options with a reasoned choice
+6. Scale & operate — added layers to hit non-functional targets: caching, sharding/replication, queues, rate limiting, monitoring
+
+Also factor in seniority signals (rate limiting, SPOF identification, trade-offs called out, hot key/skew handling).
 
 Return ONLY a valid JSON object with exactly this structure (no other text, no markdown fences):
 {
   "score": <integer 1-10>,
-  "strengths": ["<specific strength 1>", "<specific strength 2>", "<specific strength 3>"],
-  "gaps": ["<critical gap 1>", "<critical gap 2>", "<critical gap 3>"],
-  "suggestions": ["<actionable suggestion 1>", "<actionable suggestion 2>", "<actionable suggestion 3>"],
-  "summary": "<1-2 sentence overall assessment referencing their specific response>"
+  "strengths": ["<specific strength referencing their actual response>", "<strength 2>", "<strength 3>"],
+  "gaps": ["<critical gap 1>", "<gap 2>", "<gap 3>"],
+  "suggestions": ["<actionable suggestion 1>", "<suggestion 2>", "<suggestion 3>"],
+  "summary": "<1-2 sentence overall assessment referencing their specific response>",
+  "frameworkCoverage": [
+    { "step": "Functional requirements", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence about what they did or didn't cover>" },
+    { "step": "Non-functional requirements", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence>" },
+    { "step": "Core entities & API", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence>" },
+    { "step": "High-level design", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence>" },
+    { "step": "Deep dive", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence>" },
+    { "step": "Scale & operate", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence>" }
+  ]
 }
 
 Be constructive, specific, and reference their actual response content. A score of 7+ means ready for senior roles.`;

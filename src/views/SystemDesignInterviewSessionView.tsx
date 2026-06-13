@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import Whiteboard, { type WhiteboardHandle } from '../components/Whiteboard';
 import { reviewDesign, chatWithInterviewer, getAIKey, type ReviewFeedback, type ChatMessage } from '../lib/claudeReview';
+import type { StepCoverage } from '../lib/claudeReview';
 import { INTERVIEW_QUESTIONS } from '../data/interviewQuestions';
 import { usePageTitle } from '../lib/usePageTitle';
 
@@ -73,6 +74,74 @@ function FeedbackSection({
   );
 }
 
+function FrameworkCoveragePanel({ coverage }: { coverage: StepCoverage[] }) {
+  const icon = (c: StepCoverage['covered']) =>
+    c === 'yes' ? (
+      <CheckCircle2 size={13} className="text-emerald-500 shrink-0 mt-0.5" />
+    ) : c === 'partial' ? (
+      <div className="shrink-0 mt-0.5 h-3 w-3 rounded-full border-2 border-amber-500 bg-amber-100 dark:bg-amber-900/40" />
+    ) : (
+      <XCircle size={13} className="text-rose-500 shrink-0 mt-0.5" />
+    );
+
+  const bar = (c: StepCoverage['covered']) =>
+    c === 'yes'
+      ? 'bg-emerald-500'
+      : c === 'partial'
+        ? 'bg-amber-400'
+        : 'bg-rose-400';
+
+  const yesCount = coverage.filter((s) => s.covered === 'yes').length;
+  const partialCount = coverage.filter((s) => s.covered === 'partial').length;
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">
+        <span>Framework Coverage</span>
+        <span className="font-mono text-slate-500 dark:text-slate-400 normal-case tracking-normal">
+          {yesCount} / {coverage.length} steps
+        </span>
+      </div>
+      <div className="mb-3 flex h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        {coverage.map((s, i) => (
+          <div
+            key={i}
+            className={`flex-1 ${bar(s.covered)} ${i > 0 ? 'ml-0.5' : ''}`}
+          />
+        ))}
+      </div>
+      <div className="space-y-2">
+        {coverage.map((s) => (
+          <div key={s.step} className="flex items-start gap-2">
+            {icon(s.covered)}
+            <div className="min-w-0">
+              <span className={`text-xs font-semibold ${
+                s.covered === 'yes'
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : s.covered === 'partial'
+                    ? 'text-amber-700 dark:text-amber-400'
+                    : 'text-rose-700 dark:text-rose-400'
+              }`}>
+                {s.step}
+              </span>
+              {s.note && (
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {s.note}
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      {yesCount + partialCount < coverage.length && (
+        <p className="mt-2 text-[10px] text-slate-400 dark:text-slate-500">
+          Missing steps are what most candidates skip — covering them pushes your score to 8+.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function SystemDesignInterviewSessionView({
   questionId,
   onBack,
@@ -88,7 +157,10 @@ export default function SystemDesignInterviewSessionView({
   const whiteboardRef = useRef<WhiteboardHandle>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  const [text, setText] = useState('');
+  const textKey = `leetdeck.interview.text.${questionId}`;
+  const [text, setText] = useState(() =>
+    typeof window !== 'undefined' ? (window.localStorage.getItem(`leetdeck.interview.text.${questionId}`) ?? '') : ''
+  );
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<ReviewFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +179,12 @@ export default function SystemDesignInterviewSessionView({
   const [timeLeft, setTimeLeft] = useState(0);
   const [timerExpired, setTimerExpired] = useState(false);
   const [customInput, setCustomInput] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(textKey, text);
+    }
+  }, [text, textKey]);
 
   useEffect(() => {
     if (!timerMinutes || timeLeft <= 0) return;
@@ -510,6 +588,12 @@ export default function SystemDesignInterviewSessionView({
                     <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                       {feedback.summary}
                     </p>
+                  )}
+
+                  {feedback.frameworkCoverage && feedback.frameworkCoverage.length > 0 && (
+                    <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                      <FrameworkCoveragePanel coverage={feedback.frameworkCoverage} />
+                    </div>
                   )}
 
                   <FeedbackSection
