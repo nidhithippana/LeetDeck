@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
   ArrowLeft,
   Loader2,
@@ -436,7 +437,21 @@ export default function SystemDesignInterviewSessionView({
                           : 'border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
                       }`}
                     >
-                      {msg.content}
+                      {msg.role === 'user' ? msg.content : (
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                            strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                            em: ({ children }) => <em className="italic">{children}</em>,
+                            code: ({ children }) => <code className="rounded bg-slate-200 px-1 font-mono text-xs dark:bg-slate-700">{children}</code>,
+                            ul: ({ children }) => <ul className="mb-1 ml-4 list-disc">{children}</ul>,
+                            ol: ({ children }) => <ol className="mb-1 ml-4 list-decimal">{children}</ol>,
+                            li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      )}
                     </div>
                   </div>
                 ))}
