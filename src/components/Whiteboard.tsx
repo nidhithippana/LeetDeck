@@ -132,11 +132,11 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     localStorage.setItem(storageKey + '.elements', JSON.stringify(elements));
   }, [storageKey, elements]);
 
-  // Deactivate text on outside click
+  // Deactivate text on outside click (only for clicks truly outside the whiteboard)
   useEffect(() => {
     if (!activeTextId) return;
     const h = (e: MouseEvent) => {
-      if ((e.target as HTMLElement).closest('[data-text-el]')) return;
+      if (containerRef.current?.contains(e.target as Node)) return;
       deactivateText();
     };
     document.addEventListener('mousedown', h);
@@ -144,11 +144,11 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTextId]);
 
-  // Deselect shape on outside click (when select tool active)
+  // Deselect shape on outside click (only for clicks truly outside the whiteboard)
   useEffect(() => {
     if (!selectedId) return;
     const h = (e: MouseEvent) => {
-      if ((e.target as HTMLElement).closest('[data-shape-el],[data-text-el]')) return;
+      if (containerRef.current?.contains(e.target as Node)) return;
       setSelectedId(null);
     };
     document.addEventListener('mousedown', h);
