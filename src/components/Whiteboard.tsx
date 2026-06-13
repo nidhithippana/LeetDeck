@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { Eraser, Pencil, Trash2 } from 'lucide-react';
+import { Eraser, Pencil, Trash2, Type } from 'lucide-react';
 
 export type WhiteboardHandle = {
   getImageDataUrl: () => string;
@@ -8,6 +8,14 @@ export type WhiteboardHandle = {
 
 type Props = {
   storageKey?: string;
+};
+
+type TextOverlay = {
+  cssX: number;
+  cssY: number;
+  canvasX: number;
+  canvasY: number;
+  value: string;
 };
 
 const COLORS = [
@@ -25,14 +33,18 @@ const SIZES = [
   { value: 11, label: 'L' },
 ];
 
+const FONT_SIZE: Record<number, number> = { 2: 14, 5: 20, 11: 28 };
+
 const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ storageKey }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
+  const textInputRef = useRef<HTMLInputElement>(null);
+  const [tool, setTool] = useState<'pen' | 'eraser' | 'text'>('pen');
   const [color, setColor] = useState(COLORS[0].value);
   const [size, setSize] = useState(SIZES[1].value);
   const [hasContent, setHasContent] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [textOverlay, setTextOverlay] = useState<TextOverlay | null>(null);
   const drawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
 
@@ -57,36 +69,40 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     }
   }, [storageKey]);
 
+  // Auto-focus text input when it appears
+  useEffect(() => {
+    if (textOverlay) textInputRef.current?.focus();
+  }, [textOverlay]);
+
   const saveToStorage = () => {
     if (storageKey && canvasRef.current) {
       localStorage.setItem(storageKey, canvasRef.current.toDataURL('image/png'));
     }
   };
 
-  const getPos = (
-    e:
-      | React.MouseEvent<HTMLCanvasElement>
-      | React.TouchEvent<HTMLCanvasElement>
-  ) => {
+  const getCanvasPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-
-    if ('touches' in e) {
-      const touch = e.touches[0];
-      return {
-        x: (touch.clientX - rect.left) * scaleX,
-        y: (touch.clientY - rect.top) * scaleY,
-      };
-    }
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      cssX: e.clientX - rect.left,
+      cssY: e.clientY - rect.top,
+      canvasX: (e.clientX - rect.left) * (canvas.width / rect.width),
+      canvasY: (e.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  };
+
+  const getTouchPos = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    return {
+      x: (touch.clientX - rect.left) * (canvas.width / rect.width),
+      y: (touch.clientY - rect.top) * (canvas.height / rect.height),
     };
   };
 
   const startDrawing = (pos: { x: number; y: number }) => {
+    if (tool === 'text') return;
     drawing.current = true;
     lastPos.current = pos;
     const ctx = canvasRef.current!.getContext('2d')!;
@@ -99,7 +115,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   };
 
   const continueDraw = (pos: { x: number; y: number }) => {
-    if (!drawing.current || !lastPos.current) return;
+    if (!drawing.current || !lastPos.current || tool === 'text') return;
     const ctx = canvasRef.current!.getContext('2d')!;
     const strokeSize = tool === 'eraser' ? size * 4 : size;
     ctx.beginPath();
@@ -120,6 +136,34 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     saveToStorage();
   };
 
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (tool === 'text') {
+      const pos = getCanvasPos(e);
+      setTextOverlay({ ...pos, value: '' });
+    } else {
+      const canvas = canvasRef.current!;
+      const rect = canvas.getBoundingClientRect();
+      startDrawing({
+        x: (e.clientX - rect.left) * (canvas.width / rect.width),
+        y: (e.clientY - rect.top) * (canvas.height / rect.height),
+      });
+    }
+  };
+
+  const commitText = () => {
+    if (!textOverlay) return;
+    if (textOverlay.value.trim()) {
+      const ctx = canvasRef.current!.getContext('2d')!;
+      const fs = FONT_SIZE[size] ?? 20;
+      ctx.font = `${fs}px sans-serif`;
+      ctx.fillStyle = color;
+      ctx.fillText(textOverlay.value, textOverlay.canvasX, textOverlay.canvasY + fs);
+      setHasContent(true);
+      saveToStorage();
+    }
+    setTextOverlay(null);
+  };
+
   const handleClearConfirmed = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -135,6 +179,8 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     getImageDataUrl: () => canvasRef.current?.toDataURL('image/png') ?? '',
     isEmpty: () => !hasContent,
   }));
+
+  const canvasCursor = tool === 'eraser' ? 'cell' : tool === 'text' ? 'text' : 'crosshair';
 
   return (
     <div ref={containerRef} className="flex h-full flex-col">
@@ -164,10 +210,21 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
           >
             <Eraser size={13} />
           </button>
+          <button
+            onClick={() => setTool('text')}
+            title="Text"
+            className={`flex items-center px-2.5 py-1.5 transition ${
+              tool === 'text'
+                ? 'bg-indigo-600 text-white'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Type size={13} />
+          </button>
         </div>
 
         {/* Color swatches */}
-        {tool === 'pen' && (
+        {tool !== 'eraser' && (
           <div className="flex items-center gap-1">
             {COLORS.map((c) => (
               <button
@@ -185,13 +242,13 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
           </div>
         )}
 
-        {/* Stroke size */}
+        {/* Size */}
         <div className="flex items-center gap-1">
           {SIZES.map((s) => (
             <button
               key={s.value}
               onClick={() => setSize(s.value)}
-              title={`${s.label} stroke`}
+              title={`${s.label} ${tool === 'text' ? 'text' : 'stroke'}`}
               className={`flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold transition ${
                 size === s.value
                   ? 'bg-indigo-600 text-white'
@@ -222,22 +279,48 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
           width={1400}
           height={900}
           className="h-full w-full"
-          style={{ cursor: tool === 'eraser' ? 'cell' : 'crosshair', touchAction: 'none' }}
-          onMouseDown={(e) => startDrawing(getPos(e))}
-          onMouseMove={(e) => continueDraw(getPos(e))}
+          style={{ cursor: canvasCursor, touchAction: 'none' }}
+          onMouseDown={handleCanvasMouseDown}
+          onMouseMove={(e) => {
+            const canvas = canvasRef.current!;
+            const rect = canvas.getBoundingClientRect();
+            continueDraw({
+              x: (e.clientX - rect.left) * (canvas.width / rect.width),
+              y: (e.clientY - rect.top) * (canvas.height / rect.height),
+            });
+          }}
           onMouseUp={stopDrawing}
           onMouseLeave={stopDrawing}
-          onTouchStart={(e) => {
-            e.preventDefault();
-            startDrawing(getPos(e));
-          }}
-          onTouchMove={(e) => {
-            e.preventDefault();
-            continueDraw(getPos(e));
-          }}
+          onTouchStart={(e) => { e.preventDefault(); startDrawing(getTouchPos(e)); }}
+          onTouchMove={(e) => { e.preventDefault(); continueDraw(getTouchPos(e)); }}
           onTouchEnd={stopDrawing}
         />
-        {!hasContent && (
+
+        {/* Text input overlay */}
+        {textOverlay && (
+          <input
+            ref={textInputRef}
+            type="text"
+            value={textOverlay.value}
+            onChange={(e) => setTextOverlay({ ...textOverlay, value: e.target.value })}
+            onBlur={commitText}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitText();
+              if (e.key === 'Escape') setTextOverlay(null);
+            }}
+            style={{
+              position: 'absolute',
+              left: textOverlay.cssX,
+              top: textOverlay.cssY,
+              fontSize: FONT_SIZE[size] ?? 20,
+              color,
+              minWidth: 120,
+            }}
+            className="border-0 bg-transparent outline-none ring-1 ring-indigo-400"
+          />
+        )}
+
+        {!hasContent && !textOverlay && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <p className="text-sm text-slate-300 dark:text-slate-600">
               Draw your system design diagram here
