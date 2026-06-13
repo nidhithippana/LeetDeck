@@ -14,7 +14,23 @@ import { useSdSrs } from "../srs/useSdSrs";
 import { useInterviewHistory } from "../srs/useInterviewHistory";
 import { updateProfile } from "../srs/storage";
 import { PROBLEMS_BY_ID } from "../data/problems";
+import { todayISO } from "../srs/sm2";
 import type { Rating } from "../types";
+
+const TOPIC_FILTER_KEY = "leetdeck.topicFilter";
+const SKIPPED_KEY_PREFIX = "leetdeck.skipped";
+
+function loadSkippedToday(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = JSON.parse(
+      window.localStorage.getItem(`${SKIPPED_KEY_PREFIX}.${todayISO()}`) ?? "[]"
+    );
+    return Array.isArray(raw) ? (raw as string[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 type LcRoute =
   | { name: "today" }
@@ -45,6 +61,33 @@ export default function AppShell() {
   const [route, setRoute] = useState<Route>(() =>
     section === "system-design" ? { name: "sd-today" } : { name: "today" }
   );
+
+  const [topicFilter, setTopicFilterState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(TOPIC_FILTER_KEY) ?? null;
+  });
+
+  const [skippedToday, setSkippedToday] = useState<string[]>(() =>
+    loadSkippedToday()
+  );
+
+  const handleTopicFilterChange = useCallback((topic: string | null) => {
+    setTopicFilterState(topic);
+    if (topic) window.localStorage.setItem(TOPIC_FILTER_KEY, topic);
+    else window.localStorage.removeItem(TOPIC_FILTER_KEY);
+  }, []);
+
+  const handleSkip = useCallback((problemId: string) => {
+    setSkippedToday((prev) => {
+      if (prev.includes(problemId)) return prev;
+      const next = [...prev, problemId];
+      window.localStorage.setItem(
+        `${SKIPPED_KEY_PREFIX}.${todayISO()}`,
+        JSON.stringify(next)
+      );
+      return next;
+    });
+  }, []);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -192,6 +235,10 @@ export default function AppShell() {
         onOpenProblem={openProblem}
         onSignOut={signOut}
         onOpenSettings={openSettings}
+        topicFilter={topicFilter}
+        onTopicFilterChange={handleTopicFilterChange}
+        skippedToday={skippedToday}
+        onSkip={handleSkip}
       />
     );
   } else {
