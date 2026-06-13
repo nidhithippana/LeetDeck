@@ -19,6 +19,7 @@ import type { Rating } from "../types";
 
 const TOPIC_FILTER_KEY = "leetdeck.topicFilter";
 const SKIPPED_KEY_PREFIX = "leetdeck.skipped";
+const ROUTE_KEY = "leetdeck.route";
 
 function loadSkippedToday(): string[] {
   if (typeof window === "undefined") return [];
@@ -59,9 +60,18 @@ export default function AppShell() {
     );
   });
 
-  const [route, setRoute] = useState<Route>(() =>
-    section === "system-design" ? { name: "sd-today" } : { name: "today" }
-  );
+  const [route, setRoute] = useState<Route>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = window.localStorage.getItem(ROUTE_KEY);
+        if (saved) {
+          const r = JSON.parse(saved) as Route;
+          if (r && typeof r === "object" && "name" in r) return r;
+        }
+      } catch { /* ignore */ }
+    }
+    return section === "system-design" ? { name: "sd-today" } : { name: "today" };
+  });
 
   const [topicFilter, setTopicFilterState] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -108,6 +118,13 @@ export default function AppShell() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("leetdeck.section", section);
   }, [section]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // Don't persist queue-based routes — the queue won't survive a reload
+    if (route.name === "sd-review" || route.name === "sd-browse") return;
+    window.localStorage.setItem(ROUTE_KEY, JSON.stringify(route));
+  }, [route]);
 
   const handleSectionChange = useCallback((s: AppSection) => {
     setSection(s);
