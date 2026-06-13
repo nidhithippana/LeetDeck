@@ -151,21 +151,32 @@ export default function SystemDesignView({
         </div>
 
         {dueCount === 0 ? (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 text-center dark:border-emerald-900/50 dark:bg-emerald-950/40">
-            <CheckCircle2
-              className="mx-auto text-emerald-600 dark:text-emerald-400"
-              size={36}
-            />
-            <div className="mt-2 text-lg font-bold text-emerald-900 dark:text-emerald-200">
-              {reviewedCount > 0
-                ? "All done for today!"
-                : "Nothing due right now"}
+          <div className="space-y-3">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 text-center dark:border-emerald-900/50 dark:bg-emerald-950/40">
+              <CheckCircle2
+                className="mx-auto text-emerald-600 dark:text-emerald-400"
+                size={36}
+              />
+              <div className="mt-2 text-lg font-bold text-emerald-900 dark:text-emerald-200">
+                {reviewedCount > 0
+                  ? "All done for today!"
+                  : "Nothing due right now"}
+              </div>
+              <div className="text-sm text-emerald-700 dark:text-emerald-400">
+                {reviewedCount > 0
+                  ? "Come back tomorrow for your next system design review."
+                  : "You're ahead — check back tomorrow."}
+              </div>
             </div>
-            <div className="text-sm text-emerald-700 dark:text-emerald-400">
-              {reviewedCount > 0
-                ? "Come back tomorrow for your next system design review."
-                : "You're ahead — check back tomorrow."}
-            </div>
+            {reviewedCount > 0 && (
+              <button
+                onClick={onRestudyToday}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
+              >
+                <RefreshCw size={15} />
+                Restudy today's {reviewedCount} card{reviewedCount !== 1 ? "s" : ""}
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -185,6 +196,15 @@ export default function SystemDesignView({
                   .filter(Boolean)
                   .join(' · ')}
               </p>
+            )}
+            {reviewedCount > 0 && (
+              <button
+                onClick={onRestudyToday}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
+              >
+                <RefreshCw size={15} />
+                Restudy today's {reviewedCount} card{reviewedCount !== 1 ? "s" : ""}
+              </button>
             )}
           </div>
         )}
