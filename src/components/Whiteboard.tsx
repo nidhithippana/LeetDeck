@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { Eraser, Pencil, Trash2, Type } from 'lucide-react';
+import { Check, Eraser, Pencil, Trash2, Type, X } from 'lucide-react';
 
 export type WhiteboardHandle = {
   getImageDataUrl: () => string;
@@ -10,11 +10,11 @@ type Props = {
   storageKey?: string;
 };
 
-type TextOverlay = {
-  cssX: number;
-  cssY: number;
-  canvasX: number;
-  canvasY: number;
+type TextBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
   value: string;
 };
 
@@ -33,18 +33,22 @@ const SIZES = [
   { value: 11, label: 'L' },
 ];
 
-const FONT_SIZE: Record<number, number> = { 2: 14, 5: 20, 11: 28 };
+const FONT_SIZE: Record<number, number> = { 2: 13, 5: 18, 11: 26 };
+const HEADER_H = 28;
 
 const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ storageKey }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const textInputRef = useRef<HTMLInputElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const resizeDivRef = useRef<HTMLDivElement>(null);
+  const dragStartRef = useRef<{ mx: number; my: number; bx: number; by: number } | null>(null);
+
   const [tool, setTool] = useState<'pen' | 'eraser' | 'text'>('pen');
   const [color, setColor] = useState(COLORS[0].value);
   const [size, setSize] = useState(SIZES[1].value);
   const [hasContent, setHasContent] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
-  const [textOverlay, setTextOverlay] = useState<TextOverlay | null>(null);
+  const [textBox, setTextBox] = useState<TextBox | null>(null);
   const drawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
 
@@ -55,24 +59,19 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     if (!ctx) return;
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     if (storageKey) {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0);
-          setHasContent(true);
-        };
+        img.onload = () => { ctx.drawImage(img, 0, 0); setHasContent(true); };
         img.src = saved;
       }
     }
   }, [storageKey]);
 
-  // Auto-focus text input when it appears
   useEffect(() => {
-    if (textOverlay) textInputRef.current?.focus();
-  }, [textOverlay]);
+    if (textBox) textAreaRef.current?.focus();
+  }, [!!textBox]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveToStorage = () => {
     if (storageKey && canvasRef.current) {
@@ -80,7 +79,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     }
   };
 
-  const getCanvasPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const getCSSAndCanvasPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
     return {
@@ -91,18 +90,74 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     };
   };
 
-  const getTouchPos = (e: React.TouchEvent<HTMLCanvasElement>) => {
+  const getTouchCanvasPos = (e: React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
-    const touch = e.touches[0];
+    const t = e.touches[0];
     return {
-      x: (touch.clientX - rect.left) * (canvas.width / rect.width),
-      y: (touch.clientY - rect.top) * (canvas.height / rect.height),
+      x: (t.clientX - rect.left) * (canvas.width / rect.width),
+      y: (t.clientY - rect.top) * (canvas.height / rect.height),
     };
   };
 
+  const commitTextBox = () => {
+    const tb = textBox;
+    if (!tb) return;
+    setTextBox(null);
+    if (!tb.value.trim()) return;
+
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const ctx = canvas.getContext('2d')!;
+    const fs = (FONT_SIZE[size] ?? 18) * scaleY;
+    ctx.font = `${fs}px sans-serif`;
+    ctx.fillStyle = color;
+
+    const pad = 6 * scaleX;
+    const canvasX = tb.x * scaleX + pad;
+    const canvasY = (tb.y + HEADER_H) * scaleY;
+    const lineH = fs * 1.4;
+    const maxW = tb.width * scaleX - pad * 2;
+
+    tb.value.split('\n').forEach((line, i) => {
+      ctx.fillText(line, canvasX, canvasY + (i + 1) * lineH, maxW);
+    });
+
+    setHasContent(true);
+    saveToStorage();
+  };
+
+  const handleDragBarMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    const tb = textBox!;
+    dragStartRef.current = { mx: e.clientX, my: e.clientY, bx: tb.x, by: tb.y };
+    const onMove = (ev: MouseEvent) => {
+      if (!dragStartRef.current) return;
+      setTextBox(prev => prev ? {
+        ...prev,
+        x: dragStartRef.current!.bx + ev.clientX - dragStartRef.current!.mx,
+        y: dragStartRef.current!.by + ev.clientY - dragStartRef.current!.my,
+      } : null);
+    };
+    const onUp = () => {
+      dragStartRef.current = null;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const captureResizeSize = () => {
+    const el = resizeDivRef.current;
+    if (!el) return;
+    setTextBox(prev => prev ? { ...prev, width: el.offsetWidth, height: el.offsetHeight } : null);
+  };
+
   const startDrawing = (pos: { x: number; y: number }) => {
-    if (tool === 'text') return;
     drawing.current = true;
     lastPos.current = pos;
     const ctx = canvasRef.current!.getContext('2d')!;
@@ -115,7 +170,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   };
 
   const continueDraw = (pos: { x: number; y: number }) => {
-    if (!drawing.current || !lastPos.current || tool === 'text') return;
+    if (!drawing.current || !lastPos.current) return;
     const ctx = canvasRef.current!.getContext('2d')!;
     const strokeSize = tool === 'eraser' ? size * 4 : size;
     ctx.beginPath();
@@ -138,30 +193,13 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
 
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (tool === 'text') {
-      const pos = getCanvasPos(e);
-      setTextOverlay({ ...pos, value: '' });
+      if (textBox) commitTextBox();
+      const pos = getCSSAndCanvasPos(e);
+      setTextBox({ x: pos.cssX, y: pos.cssY, width: 220, height: 90, value: '' });
     } else {
-      const canvas = canvasRef.current!;
-      const rect = canvas.getBoundingClientRect();
-      startDrawing({
-        x: (e.clientX - rect.left) * (canvas.width / rect.width),
-        y: (e.clientY - rect.top) * (canvas.height / rect.height),
-      });
+      const pos = getCSSAndCanvasPos(e);
+      startDrawing({ x: pos.canvasX, y: pos.canvasY });
     }
-  };
-
-  const commitText = () => {
-    if (!textOverlay) return;
-    if (textOverlay.value.trim()) {
-      const ctx = canvasRef.current!.getContext('2d')!;
-      const fs = FONT_SIZE[size] ?? 20;
-      ctx.font = `${fs}px sans-serif`;
-      ctx.fillStyle = color;
-      ctx.fillText(textOverlay.value, textOverlay.canvasX, textOverlay.canvasY + fs);
-      setHasContent(true);
-      saveToStorage();
-    }
-    setTextOverlay(null);
   };
 
   const handleClearConfirmed = () => {
@@ -171,6 +209,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     setHasContent(false);
+    setTextBox(null);
     if (storageKey) localStorage.removeItem(storageKey);
     setConfirmClear(false);
   };
@@ -186,44 +225,27 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     <div ref={containerRef} className="flex h-full flex-col">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-slate-700 dark:bg-slate-800/80">
-        {/* Tool toggle */}
         <div className="flex items-center overflow-hidden rounded-md border border-slate-200 dark:border-slate-700">
-          <button
-            onClick={() => setTool('pen')}
-            title="Pen"
-            className={`flex items-center px-2.5 py-1.5 transition ${
-              tool === 'pen'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
-            }`}
-          >
-            <Pencil size={13} />
-          </button>
-          <button
-            onClick={() => setTool('eraser')}
-            title="Eraser"
-            className={`flex items-center px-2.5 py-1.5 transition ${
-              tool === 'eraser'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
-            }`}
-          >
-            <Eraser size={13} />
-          </button>
-          <button
-            onClick={() => setTool('text')}
-            title="Text"
-            className={`flex items-center px-2.5 py-1.5 transition ${
-              tool === 'text'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
-            }`}
-          >
-            <Type size={13} />
-          </button>
+          {[
+            { id: 'pen' as const, icon: <Pencil size={13} />, title: 'Pen' },
+            { id: 'eraser' as const, icon: <Eraser size={13} />, title: 'Eraser' },
+            { id: 'text' as const, icon: <Type size={13} />, title: 'Text' },
+          ].map(({ id, icon, title }) => (
+            <button
+              key={id}
+              onClick={() => setTool(id)}
+              title={title}
+              className={`flex items-center px-2.5 py-1.5 transition ${
+                tool === id
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
+              }`}
+            >
+              {icon}
+            </button>
+          ))}
         </div>
 
-        {/* Color swatches */}
         {tool !== 'eraser' && (
           <div className="flex items-center gap-1">
             {COLORS.map((c) => (
@@ -232,9 +254,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
                 onClick={() => setColor(c.value)}
                 title={c.label}
                 className={`h-5 w-5 rounded-full border-2 transition hover:scale-110 ${
-                  color === c.value
-                    ? 'scale-110 border-slate-600 dark:border-slate-300'
-                    : 'border-transparent'
+                  color === c.value ? 'scale-110 border-slate-600 dark:border-slate-300' : 'border-transparent'
                 }`}
                 style={{ backgroundColor: c.value }}
               />
@@ -242,13 +262,12 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
           </div>
         )}
 
-        {/* Size */}
         <div className="flex items-center gap-1">
           {SIZES.map((s) => (
             <button
               key={s.value}
               onClick={() => setSize(s.value)}
-              title={`${s.label} ${tool === 'text' ? 'text' : 'stroke'}`}
+              title={`${s.label}`}
               className={`flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold transition ${
                 size === s.value
                   ? 'bg-indigo-600 text-white'
@@ -272,7 +291,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
         </button>
       </div>
 
-      {/* Canvas */}
+      {/* Canvas area */}
       <div className="relative min-h-0 flex-1 bg-white">
         <canvas
           ref={canvasRef}
@@ -291,40 +310,75 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
           }}
           onMouseUp={stopDrawing}
           onMouseLeave={stopDrawing}
-          onTouchStart={(e) => { e.preventDefault(); startDrawing(getTouchPos(e)); }}
-          onTouchMove={(e) => { e.preventDefault(); continueDraw(getTouchPos(e)); }}
+          onTouchStart={(e) => { e.preventDefault(); startDrawing(getTouchCanvasPos(e)); }}
+          onTouchMove={(e) => { e.preventDefault(); continueDraw(getTouchCanvasPos(e)); }}
           onTouchEnd={stopDrawing}
         />
 
-        {/* Text input overlay */}
-        {textOverlay && (
-          <input
-            ref={textInputRef}
-            type="text"
-            value={textOverlay.value}
-            onChange={(e) => setTextOverlay({ ...textOverlay, value: e.target.value })}
-            onBlur={commitText}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitText();
-              if (e.key === 'Escape') setTextOverlay(null);
-            }}
-            style={{
-              position: 'absolute',
-              left: textOverlay.cssX,
-              top: textOverlay.cssY,
-              fontSize: FONT_SIZE[size] ?? 20,
-              color,
-              minWidth: 120,
-            }}
-            className="border-0 bg-transparent outline-none ring-1 ring-indigo-400"
-          />
+        {!hasContent && !textBox && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <p className="text-sm text-slate-300 dark:text-slate-600">Draw your system design diagram here</p>
+          </div>
         )}
 
-        {!hasContent && !textOverlay && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <p className="text-sm text-slate-300 dark:text-slate-600">
-              Draw your system design diagram here
-            </p>
+        {/* Floating text box */}
+        {textBox && (
+          <div
+            style={{ position: 'absolute', left: textBox.x, top: textBox.y, zIndex: 20, userSelect: 'none' }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle bar */}
+            <div
+              onMouseDown={handleDragBarMouseDown}
+              style={{ height: HEADER_H, cursor: 'move' }}
+              className="flex items-center justify-between rounded-t-md bg-indigo-600 px-2"
+            >
+              <span className="text-[10px] font-medium text-indigo-200 select-none">Text · drag to move</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={commitTextBox}
+                  title="Done"
+                  className="rounded p-0.5 text-white hover:bg-indigo-500"
+                >
+                  <Check size={12} />
+                </button>
+                <button
+                  onClick={() => setTextBox(null)}
+                  title="Cancel"
+                  className="rounded p-0.5 text-white hover:bg-indigo-500"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            </div>
+
+            {/* Resizable textarea */}
+            <div
+              ref={resizeDivRef}
+              style={{
+                width: textBox.width,
+                height: textBox.height,
+                resize: 'both',
+                overflow: 'hidden',
+                minWidth: 120,
+                minHeight: 50,
+              }}
+              className="border-2 border-indigo-400 rounded-b-md bg-white/95"
+              onMouseUp={captureResizeSize}
+            >
+              <textarea
+                ref={textAreaRef}
+                value={textBox.value}
+                onChange={(e) => setTextBox(prev => prev ? { ...prev, value: e.target.value } : null)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setTextBox(null);
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitTextBox(); }
+                }}
+                placeholder="Type here… (Enter to stamp, Shift+Enter for new line)"
+                style={{ fontSize: FONT_SIZE[size] ?? 18, color, resize: 'none' }}
+                className="h-full w-full border-0 bg-transparent p-1.5 text-slate-900 outline-none placeholder:text-slate-300"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -339,9 +393,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
             className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-1 text-base font-bold text-slate-900 dark:text-slate-100">
-              Clear whiteboard?
-            </h3>
+            <h3 className="mb-1 text-base font-bold text-slate-900 dark:text-slate-100">Clear whiteboard?</h3>
             <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">
               This will erase everything on the canvas. This cannot be undone.
             </p>
