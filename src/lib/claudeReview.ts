@@ -18,6 +18,16 @@ export function saveAIKey(key: string) {
   window.localStorage.setItem(AI_KEY_STORAGE, key.trim());
 }
 
+function geminiRequest(apiKey: string, body: object): Promise<Response> {
+  const isOAuth = apiKey.startsWith('AQ.');
+  const url = isOAuth
+    ? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+    : `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (isOAuth) headers['Authorization'] = `Bearer ${apiKey}`;
+  return fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+}
+
 export type ReviewFeedback = {
   score: number;
   strengths: string[];
@@ -83,17 +93,10 @@ Be constructive, specific, and reference their actual response content. A score 
     parts.push({ inline_data: { mime_type: 'image/png', data: base64 } });
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
-      }),
-    }
-  );
+  const response = await geminiRequest(apiKey, {
+    contents: [{ parts }],
+    generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+  });
 
   if (!response.ok) {
     const errText = await response.text();
@@ -160,17 +163,10 @@ Respond now with only: "Got it. Go ahead with your questions."`;
     })),
   ];
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 300 },
-      }),
-    }
-  );
+  const response = await geminiRequest(apiKey, {
+    contents,
+    generationConfig: { temperature: 0.7, maxOutputTokens: 300 },
+  });
 
   if (!response.ok) {
     const errText = await response.text();
