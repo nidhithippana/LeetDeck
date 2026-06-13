@@ -445,8 +445,15 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
 
   // ─── Canvas event dispatch ─────────────────────────────────────────────────
 
-  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const css = { x: e.clientX - e.currentTarget.getBoundingClientRect().left, y: e.clientY - e.currentTarget.getBoundingClientRect().top };
+  const getRelativePos = (e: React.MouseEvent<HTMLElement>) => {
+    const r = containerRef.current!.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+
+  const handleContainerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Ignore clicks that already handled by shape/text element handlers
+    if ((e.target as HTMLElement).closest('[data-shape-el],[data-text-el]')) return;
+    const css = getRelativePos(e);
     if (selection?.phase === 'placed') { commitSelection(); return; }
     if (tool === 'text')   { deactivateText(); createText(css.x, css.y); return; }
     if (tool === 'select') { selStart.current = css; setSelection({ phase:'drawing', sx:css.x, sy:css.y, ex:css.x, ey:css.y }); return; }
@@ -454,9 +461,8 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     penStart(css.x, css.y);
   };
 
-  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const css = { x: e.clientX - r.left, y: e.clientY - r.top };
+  const handleContainerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const css = getRelativePos(e);
     if (tool === 'select' && selection?.phase === 'drawing') {
       setSelection(s => s?.phase==='drawing' ? {...s, ex:css.x, ey:css.y} : s);
       drawSelectionOverlay(selection.sx, selection.sy, css.x, css.y);
@@ -469,9 +475,8 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     penMove(css.x, css.y);
   };
 
-  const handleCanvasMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const css = { x: e.clientX - r.left, y: e.clientY - r.top };
+  const handleContainerMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    const css = getRelativePos(e);
     if (tool === 'select' && selection?.phase === 'drawing') { finalizeSelection(css); return; }
     if (shapeDragRef.current && (tool==='rect'||tool==='circle'||tool==='arrow')) {
       finalizeShape(shapeDragRef.current, css);
@@ -590,16 +595,18 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
       </div>
 
       {/* ── Canvas area ─────────────────────────────────────────── */}
-      <div className="relative min-h-0 flex-1 bg-white">
+      <div className="relative min-h-0 flex-1 bg-white"
+        style={{ cursor: canvasCursor }}
+        onMouseDown={handleContainerMouseDown}
+        onMouseMove={handleContainerMouseMove}
+        onMouseUp={handleContainerMouseUp}
+        onMouseLeave={() => { penStop(); if(shapeDragRef.current){clearOverlay();shapeDragRef.current=null;} }}
+      >
 
         {/* Pen canvas */}
         <canvas ref={canvasRef} width={1400} height={900}
           className="absolute inset-0 h-full w-full"
-          style={{ cursor:canvasCursor, touchAction:'none' }}
-          onMouseDown={handleCanvasMouseDown}
-          onMouseMove={handleCanvasMouseMove}
-          onMouseUp={handleCanvasMouseUp}
-          onMouseLeave={() => { penStop(); if(shapeDragRef.current){clearOverlay();shapeDragRef.current=null;} }}
+          style={{ touchAction:'none', pointerEvents:'none' }}
           onTouchStart={e=>{ e.preventDefault(); const t=e.touches[0]; const r=e.currentTarget.getBoundingClientRect(); penStart(t.clientX-r.left,t.clientY-r.top); }}
           onTouchMove={e=>{ e.preventDefault(); const t=e.touches[0]; const r=e.currentTarget.getBoundingClientRect(); penMove(t.clientX-r.left,t.clientY-r.top); }}
           onTouchEnd={penStop}
@@ -617,7 +624,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
         )}
 
         {/* ── Shape SVG layer ──────────────────────────────────── */}
-        <svg className="absolute inset-0 h-full w-full" style={{ zIndex:20, overflow:'visible' }}>
+        <svg className="absolute inset-0 h-full w-full" style={{ zIndex:20, overflow:'visible', pointerEvents:'none' }}>
           <defs>
             {elements.filter(e => e.type==='arrow').map(e => {
               const a = e as ArrowElement;
