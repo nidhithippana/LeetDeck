@@ -272,12 +272,12 @@ export default function TodayView({
             </div>
             {hasTopicInReviews && (
               <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                Includes extra review from <strong className="font-semibold">{topicFilter}</strong>
+                Focusing on <strong className="font-semibold">{topicFilter}</strong> today — your regular due reviews carry over to tomorrow.
               </p>
             )}
             {topicFilter && (topicsCompleted as string[]).includes(topicFilter) && !hasTopicInReviews && (
               <p className="text-xs text-slate-400 dark:text-slate-500">
-                No additional <strong className="font-semibold">{topicFilter}</strong> cards available right now — all are either due or not yet started.
+                All <strong className="font-semibold">{topicFilter}</strong> cards were already done today.
               </p>
             )}
             <div className="space-y-2">

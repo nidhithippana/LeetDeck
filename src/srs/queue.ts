@@ -62,56 +62,41 @@ export function buildDailyQueue(args: {
     })
     .slice(0, remainingNew);
 
-  // ─── Reviews: rotate through the backlog ─────────────────────────────────
   const remainingReview = Math.max(0, profile.reviewPerDay - reviewDoneToday.size);
-  const reviewCardStates = Object.values(cards)
-    .filter(
-      (c) =>
-        !isNew(c) &&
-        isDue(c, today) &&
-        !reviewDoneToday.has(c.problemId) &&
-        !skipped.has(c.problemId)
-    )
-    .sort((a, b) => {
-      const ar = a.lastReviewed ?? '0000-00-00';
-      const br = b.lastReviewed ?? '0000-00-00';
-      if (ar !== br) return ar.localeCompare(br);
-      return hashStr(a.problemId + today) - hashStr(b.problemId + today);
-    });
 
-  const reviewCards = reviewCardStates
-    .slice(0, remainingReview)
-    .map((c) => PROBLEMS.find((p) => p.id === c.problemId))
-    .filter((p): p is Problem => Boolean(p));
-
-  // ─── Completed-topic random pick ─────────────────────────────────────────
-  // When the user picks a topic they've already finished, grab 1 random card
-  // from it (any problem — SRS schedule ignored) and inject it into whichever
-  // section fits: reviews if the problem has been seen, new if it hasn't.
-  const alreadyShown = new Set([
-    ...newDoneToday,
-    ...reviewDoneToday,
-    ...newCards.map((p) => p.id),
-    ...reviewCards.map((p) => p.id),
-  ]);
-
-  let topicPickNew: Problem[] = [];
-  let topicPickReview: Problem[] = [];
+  // ─── Reviews ─────────────────────────────────────────────────────────────
+  // Completed-topic session: replace normal due reviews with problems from
+  // the selected topic (any SRS state, daily-stable shuffle). Due reviews
+  // from other topics carry over naturally — no SRS modification needed.
+  // Normal session: show due reviews oldest-reviewed-first.
+  let reviewCards: Problem[];
 
   if (topicFilter && !filterHasNew) {
-    const pool = PROBLEMS
-      .filter((p) => p.topic === topicFilter && !skipped.has(p.id) && !alreadyShown.has(p.id))
-      // Stable daily shuffle so the pick feels fresh each day
-      .sort((a, b) => hashStr(a.id + today) - hashStr(b.id + today));
+    const doneToday = new Set([...newDoneToday, ...reviewDoneToday]);
+    reviewCards = PROBLEMS
+      .filter((p) => p.topic === topicFilter && !skipped.has(p.id) && !doneToday.has(p.id))
+      .sort((a, b) => hashStr(a.id + today) - hashStr(b.id + today))
+      .slice(0, remainingReview);
+  } else {
+    const reviewCardStates = Object.values(cards)
+      .filter(
+        (c) =>
+          !isNew(c) &&
+          isDue(c, today) &&
+          !reviewDoneToday.has(c.problemId) &&
+          !skipped.has(c.problemId)
+      )
+      .sort((a, b) => {
+        const ar = a.lastReviewed ?? '0000-00-00';
+        const br = b.lastReviewed ?? '0000-00-00';
+        if (ar !== br) return ar.localeCompare(br);
+        return hashStr(a.problemId + today) - hashStr(b.problemId + today);
+      });
 
-    const picked = pool[0];
-    if (picked) {
-      if (cards[picked.id]) {
-        topicPickReview = [picked];
-      } else {
-        topicPickNew = [picked];
-      }
-    }
+    reviewCards = reviewCardStates
+      .slice(0, remainingReview)
+      .map((c) => PROBLEMS.find((p) => p.id === c.problemId))
+      .filter((p): p is Problem => Boolean(p));
   }
 
   // ─── Bonus reviews from past topics (no specific topic selected) ──────────
@@ -126,14 +111,15 @@ export function buildDailyQueue(args: {
   }
 
   const inQueueOrDone = new Set([
-    ...alreadyShown,
-    ...topicPickNew.map((p) => p.id),
-    ...topicPickReview.map((p) => p.id),
+    ...newDoneToday,
+    ...reviewDoneToday,
+    ...newCards.map((p) => p.id),
+    ...reviewCards.map((p) => p.id),
   ]);
 
   const bonusReviews =
     topicFilter && !filterHasNew
-      ? [] // topic pick handles this case
+      ? []
       : PROBLEMS.filter((p) => {
           const c = cards[p.id];
           return (
@@ -153,8 +139,8 @@ export function buildDailyQueue(args: {
           .slice(0, 2);
 
   return {
-    newCards: [...newCards, ...topicPickNew],
-    reviewCards: [...reviewCards, ...topicPickReview, ...bonusReviews],
+    newCards,
+    reviewCards: [...reviewCards, ...bonusReviews],
     newDoneCount: newDoneToday.size,
     reviewDoneCount: reviewDoneToday.size,
     newTarget: profile.newPerDay,
