@@ -35,6 +35,12 @@ export type StepCoverage = {
   note: string;
 };
 
+export type QuestioningFeedback = {
+  overall: 'strong' | 'adequate' | 'weak' | 'none';
+  summary: string;
+  betterQuestions: string[];
+};
+
 export type ReviewFeedback = {
   score: number;
   strengths: string[];
@@ -42,6 +48,7 @@ export type ReviewFeedback = {
   suggestions: string[];
   summary: string;
   frameworkCoverage?: StepCoverage[];
+  questioningFeedback?: QuestioningFeedback;
 };
 
 export async function reviewDesign(params: {
@@ -49,59 +56,108 @@ export async function reviewDesign(params: {
   questionPrompt: string;
   textResponse: string;
   imageDataUrl: string | null;
+  chatHistory?: { role: 'user' | 'ai'; content: string }[];
 }): Promise<ReviewFeedback> {
   const apiKey = getAIKey();
   if (!apiKey) {
     throw new Error('No API key found. Add your OpenAI API key in Settings → AI Review.');
   }
 
-  const prompt = `You are an expert system design interviewer at a top-tier tech company.
+  const chatTranscript =
+    params.chatHistory && params.chatHistory.length > 0
+      ? params.chatHistory
+          .map((m) => `${m.role === 'user' ? 'Candidate' : 'Interviewer'}: ${m.content}`)
+          .join('\n')
+      : null;
+
+  const prompt = `You are an expert system design interviewer at a top-tier tech company evaluating a mock interview.
 
 The candidate was asked: "${params.questionTitle}"
 
-Full question prompt:
+Full question context (what you as the interviewer know):
 ${params.questionPrompt}
 
----
-Candidate's written response:
+═══════════════════════════════════════════════
+SECTION 1 — CLARIFYING QUESTIONS
+${chatTranscript
+  ? `The candidate asked the following clarifying questions:\n\n${chatTranscript}`
+  : 'The candidate asked NO clarifying questions before designing.'}
+═══════════════════════════════════════════════
+SECTION 2 — WRITTEN RESPONSE
 ${params.textResponse?.trim() || '(No written response provided)'}
+═══════════════════════════════════════════════
+SECTION 3 — HIGH-LEVEL DESIGN DIAGRAM
+${params.imageDataUrl
+  ? 'The candidate drew a system design diagram (attached image). Evaluate it alongside their written response.'
+  : 'The candidate did NOT draw a diagram. A missing diagram is a significant gap — high-level design is expected to be visual in real interviews. Deduct points accordingly.'}
+═══════════════════════════════════════════════
 
----
-${params.imageDataUrl ? 'The candidate also drew a system design diagram (attached image).' : 'The candidate did not draw a diagram.'}
+EVALUATION INSTRUCTIONS:
 
-Evaluate their response against the standard SD interview framework. For each of the 6 steps, rate coverage as:
-- "yes" = clearly and specifically addressed
-- "partial" = mentioned but shallow or incomplete
-- "missing" = not addressed at all
+1. CLARIFYING QUESTIONS: Evaluate whether the candidate asked the right questions before designing.
+   Strong questions surface: core use cases, scale (DAU/QPS/storage), latency targets, consistency requirements,
+   read/write ratio, geography, specific constraints. Weak questions are vague, redundant, or miss critical unknowns.
+   If they asked no questions, that is a serious gap.
 
-The 6 framework steps:
-1. Functional requirements — listed 2-3 core operations as verbs, explicitly parked out-of-scope items
-2. Non-functional requirements — addressed consistency vs availability, latency target, scale (users/QPS), durability — located where each property applies
-3. Core entities & API — defined the data objects (nouns) and endpoints with request/response shapes
-4. High-level design — described a clear happy-path flow (Client → entry point → service → storage) for each core operation
-5. Deep dive — identified the hard part of this specific problem (e.g. ID generation, fan-out, ranking, dedup, consistency) and presented options with a reasoned choice
-6. Scale & operate — added layers to hit non-functional targets: caching, sharding/replication, queues, rate limiting, monitoring
+2. FRAMEWORK COVERAGE (rate each step):
+   - "yes" = clearly and specifically addressed
+   - "partial" = mentioned but shallow or incomplete
+   - "missing" = not addressed at all
 
-Also factor in seniority signals (rate limiting, SPOF identification, trade-offs called out, hot key/skew handling).
+   Steps:
+   1. Functional requirements — 2-3 core verbs, explicit out-of-scope parking
+   2. Non-functional requirements — availability vs consistency choice, latency target, QPS/scale, durability
+   3. Core entities & API — named data objects with fields, endpoint signatures with request/response shapes
+   4. High-level design — end-to-end happy-path flow (Client → gateway → service(s) → storage) per operation; MUST include a diagram
+   5. Deep dive — identified THE hard problem specific to this question (fan-out, ID gen, ranking, dedup, etc.) with options + reasoned choice
+   6. Scale & operate — caching strategy, sharding/replication, queues, rate limiting, monitoring/alerting
 
-Return ONLY a valid JSON object with exactly this structure (no other text, no markdown fences):
+3. SUGGESTIONS must be hyper-specific to THIS question — not generic advice.
+   BAD: "Add caching"
+   GOOD: "Add a Redis sorted set keyed by user_id storing the 800 most recent tweet IDs (score = timestamp) so timeline reads are O(log N) instead of fan-out at read time"
+   Each suggestion should tell them exactly WHAT to add, WHERE it fits in their design, and WHY it solves a specific problem.
+
+4. SCORING: Base 1-10. Deduct 1-2 points if no diagram. Deduct 1 point if no clarifying questions.
+   7+ = ready for senior roles. Reference their actual words when scoring.
+
+Return ONLY valid JSON, no markdown fences:
 {
   "score": <integer 1-10>,
-  "strengths": ["<specific strength referencing their actual response>", "<strength 2>", "<strength 3>"],
-  "gaps": ["<critical gap 1>", "<gap 2>", "<gap 3>"],
-  "suggestions": ["<actionable suggestion 1>", "<suggestion 2>", "<suggestion 3>"],
-  "summary": "<1-2 sentence overall assessment referencing their specific response>",
+  "summary": "<2-3 sentences: overall verdict referencing their actual response, noting diagram presence/absence and question quality>",
+  "strengths": [
+    "<specific strength quoting or referencing their actual words>",
+    "<strength 2>",
+    "<strength 3>"
+  ],
+  "gaps": [
+    "<gap that directly references something missing from their response>",
+    "<gap 2>",
+    "<gap 3>"
+  ],
+  "suggestions": [
+    "<hyper-specific suggestion: exact data structure/component to add, where it fits, why it solves the bottleneck for THIS problem>",
+    "<suggestion 2 — equally specific>",
+    "<suggestion 3>",
+    "<suggestion 4>"
+  ],
   "frameworkCoverage": [
-    { "step": "Functional requirements", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence about what they did or didn't cover>" },
-    { "step": "Non-functional requirements", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence>" },
-    { "step": "Core entities & API", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence>" },
-    { "step": "High-level design", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence>" },
-    { "step": "Deep dive", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence>" },
-    { "step": "Scale & operate", "covered": "yes"|"partial"|"missing", "note": "<one specific sentence>" }
-  ]
-}
-
-Be constructive, specific, and reference their actual response content. A score of 7+ means ready for senior roles.`;
+    { "step": "Functional requirements", "covered": "yes"|"partial"|"missing", "note": "<one sentence on what they did or didn't cover>" },
+    { "step": "Non-functional requirements", "covered": "yes"|"partial"|"missing", "note": "<one sentence>" },
+    { "step": "Core entities & API", "covered": "yes"|"partial"|"missing", "note": "<one sentence>" },
+    { "step": "High-level design", "covered": "yes"|"partial"|"missing", "note": "<one sentence — if no diagram, note that explicitly>" },
+    { "step": "Deep dive", "covered": "yes"|"partial"|"missing", "note": "<one sentence>" },
+    { "step": "Scale & operate", "covered": "yes"|"partial"|"missing", "note": "<one sentence>" }
+  ],
+  "questioningFeedback": {
+    "overall": "strong"|"adequate"|"weak"|"none",
+    "summary": "<2 sentences on the quality of their clarifying questions — what they uncovered and what they missed>",
+    "betterQuestions": [
+      "<a specific question they should have asked or a better version of one they asked, with explanation of why it matters for this problem>",
+      "<better question 2>",
+      "<better question 3>"
+    ]
+  }
+}`;
 
   type ContentPart =
     | { type: 'text'; text: string }
@@ -115,7 +171,7 @@ Be constructive, specific, and reference their actual response content. A score 
   const response = await openaiRequest(apiKey, {
     model: 'gpt-4o-mini',
     messages: [{ role: 'user', content }],
-    max_tokens: 1024,
+    max_tokens: 1800,
     temperature: 0.3,
   });
 

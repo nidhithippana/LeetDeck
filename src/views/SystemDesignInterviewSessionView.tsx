@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import Whiteboard, { type WhiteboardHandle } from '../components/Whiteboard';
 import { reviewDesign, chatWithInterviewer, getAIKey, type ReviewFeedback, type ChatMessage } from '../lib/claudeReview';
-import type { StepCoverage } from '../lib/claudeReview';
+import type { StepCoverage, QuestioningFeedback } from '../lib/claudeReview';
 import { INTERVIEW_QUESTIONS } from '../data/interviewQuestions';
 import { usePageTitle } from '../lib/usePageTitle';
 
@@ -181,6 +181,40 @@ function FrameworkCoveragePanel({ coverage }: { coverage: StepCoverage[] }) {
   );
 }
 
+function QuestioningFeedbackPanel({ qf }: { qf: QuestioningFeedback }) {
+  const badgeColor =
+    qf.overall === 'strong'
+      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+      : qf.overall === 'adequate'
+        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+        : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+        <span className="flex items-center gap-1.5"><MessageSquare size={12} /> Clarifying Questions</span>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold normal-case tracking-normal ${badgeColor}`}>
+          {qf.overall}
+        </span>
+      </div>
+      <p className="mb-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">{qf.summary}</p>
+      {qf.betterQuestions && qf.betterQuestions.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Questions to ask next time:</p>
+          <ul className="space-y-1.5">
+            {qf.betterQuestions.map((q, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <span className="mt-0.5 shrink-0 text-sky-500">›</span>
+                {q}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FeedbackPanel({ feedback }: { feedback: ReviewFeedback }) {
   return (
     <div className="space-y-5">
@@ -194,6 +228,11 @@ function FeedbackPanel({ feedback }: { feedback: ReviewFeedback }) {
         <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
           {feedback.summary}
         </p>
+      )}
+      {feedback.questioningFeedback && (
+        <div className="rounded-lg border border-sky-100 bg-sky-50/50 p-4 dark:border-sky-900/30 dark:bg-sky-950/20">
+          <QuestioningFeedbackPanel qf={feedback.questioningFeedback} />
+        </div>
       )}
       {feedback.frameworkCoverage && feedback.frameworkCoverage.length > 0 && (
         <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/50">
@@ -429,6 +468,7 @@ export default function SystemDesignInterviewSessionView({
         questionPrompt: question.prompt,
         textResponse: text,
         imageDataUrl,
+        chatHistory: chatMessages,
       });
       setFeedback(result);
       setPromptCollapsed(true);
