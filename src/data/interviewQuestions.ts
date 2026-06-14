@@ -34,57 +34,33 @@ Feel free to ask me any clarifying questions before you dive in. I'll answer the
     title: 'Design Pastebin',
     category: 'Storage & Data',
     difficulty: 'Easy',
-    prompt: `Design a text storage service like Pastebin or GitHub Gist.
+    prompt: `Let's design Pastebin.
 
-**Functional requirements:**
-- Users can upload a text blob and get a unique URL
-- Anyone with the URL can read the content
-- Content can optionally expire
+You know the site — you paste a block of text, you get a link you can share with anyone. That's it. Think about what the core experience needs to support and what could go wrong at scale.
 
-**Non-functional requirements:**
-- 1M new pastes per day; 10M reads per day
-- Each paste is up to 10MB of text
-- High availability; 99.9% uptime
-
-**Discuss:** how to store large text blobs efficiently (object storage vs. database), URL key generation, caching hot pastes, and expiration cleanup.`,
+What do you want to know before you start?`,
   },
   {
     id: 'iq-kv-store',
     title: 'Design a Key-Value Store',
     category: 'Storage & Data',
     difficulty: 'Medium',
-    prompt: `Design a distributed key-value store similar to DynamoDB or Cassandra.
+    prompt: `Let's design a distributed key-value store — something in the spirit of DynamoDB or Cassandra.
 
-**Functional requirements:**
-- \`put(key, value)\` — stores or updates a key
-- \`get(key)\` — retrieves the value for a key
-- \`delete(key)\` — removes a key
+It needs to store data and retrieve it by key. Beyond that, think about what it takes to make that work reliably across many machines.
 
-**Non-functional requirements:**
-- High availability (AP over CP for the default mode)
-- Horizontal scalability to petabytes
-- Sub-10ms p99 read and write latency
-
-**Discuss:** partitioning (consistent hashing), replication strategy, conflict resolution (vector clocks, last-write-wins), gossip protocol for node membership, and tunable consistency (quorum reads/writes).`,
+What questions do you have for me before you start?`,
   },
   {
     id: 'iq-distributed-cache',
     title: 'Design a Distributed Cache',
     category: 'Storage & Data',
     difficulty: 'Medium',
-    prompt: `Design a distributed caching system similar to Memcached or Redis Cluster.
+    prompt: `Let's design a distributed caching system — think Memcached or Redis Cluster.
 
-**Functional requirements:**
-- Get, set, and delete cache entries
-- Support TTL-based expiration
-- Cache can be shared across many application servers
+The basic idea is that many application servers share a fast in-memory cache so they don't hammer the database for the same data. What are the important problems to solve here?
 
-**Non-functional requirements:**
-- Sub-millisecond read/write latency
-- Horizontal scalability
-- Handles cache node failures gracefully (no massive cache miss storm)
-
-**Discuss:** consistent hashing for key distribution, replication for fault tolerance, eviction policies (LRU/LFU), cache invalidation strategies, and how to handle a cache node going down.`,
+Ask me anything you need to know before you dive in.`,
   },
   {
     id: 'iq-dropbox',
@@ -102,20 +78,11 @@ Ask me anything you need to know before you start.`,
     title: 'Design a Message Queue',
     category: 'Storage & Data',
     difficulty: 'Medium',
-    prompt: `Design a distributed message queue like Apache Kafka or Amazon SQS.
+    prompt: `Let's design a distributed message queue — something like Kafka or SQS.
 
-**Functional requirements:**
-- Producers publish messages to named topics
-- Consumers subscribe and receive messages in order
-- At-least-once delivery guarantee
-- Messages are retained for 7 days
+Services need a way to send messages to each other without being tightly coupled. Think about what that system needs to do and what can make it hard at scale.
 
-**Non-functional requirements:**
-- 1 million messages per second ingestion rate
-- Messages up to 1MB each
-- Consumers can replay from any offset
-
-**Discuss:** log-based storage (why sequential writes are fast), partitioning for parallelism, consumer groups and offset tracking, replication for durability, and how to handle slow consumers without blocking producers.`,
+What do you want to clarify before you start?`,
   },
 
   // ─── Social & Feeds ──────────────────────────────────────────────────────
@@ -124,39 +91,22 @@ Ask me anything you need to know before you start.`,
     title: 'Design Twitter / X Timeline',
     category: 'Social & Feeds',
     difficulty: 'Hard',
-    prompt: `Design the home timeline feature for Twitter/X — showing a user's personalized feed of tweets from people they follow.
+    prompt: `Let's design Twitter's home timeline.
 
-**Functional requirements:**
-- Post a tweet (text up to 280 chars, optional media)
-- View a home timeline (ranked feed from followed accounts)
-- Like and retweet
+When you open Twitter, you see a feed of tweets from people you follow. I want you to design that — specifically the part that figures out what to show you and how to serve it fast.
 
-**Non-functional requirements:**
-- 300M daily active users
-- Timeline must load in under 1 second
-- "Celebrity problem": some accounts have 100M followers
-
-**Discuss:** fan-out on write (push to followers' feeds) vs. fan-out on read (pull at query time), hybrid approach for celebrities, caching timelines in Redis, ranking/ordering, and how media (images/video) is handled separately.`,
+What questions do you have before you start?`,
   },
   {
     id: 'iq-instagram',
     title: 'Design Instagram',
     category: 'Social & Feeds',
     difficulty: 'Hard',
-    prompt: `Design a photo-sharing social network like Instagram.
+    prompt: `Let's design Instagram.
 
-**Functional requirements:**
-- Upload photos and short videos with captions
-- Follow/unfollow users
-- View a personalized feed
-- Like and comment on posts
+People upload photos and videos, follow each other, and see a personalized feed when they open the app. I want you to design the core system behind that experience.
 
-**Non-functional requirements:**
-- 1B users, 100M photos uploaded per day
-- Media storage at massive scale
-- Feed must load in under 2 seconds
-
-**Discuss:** CDN + object storage for media, feed generation (push vs. pull), photo deduplication, sharding user/post/follow data, caching hot posts and profiles, and recommendations.`,
+Feel free to ask me anything before you start.`,
   },
   {
     id: 'iq-news-feed',
@@ -174,19 +124,11 @@ What do you want to know before you start?`,
     title: 'Design TikTok / Short Video Feed',
     category: 'Social & Feeds',
     difficulty: 'Hard',
-    prompt: `Design a short-form video platform like TikTok with a personalized "For You" feed.
+    prompt: `Let's design TikTok.
 
-**Functional requirements:**
-- Upload short videos (up to 3 minutes)
-- Infinite personalized feed with near-instant playback
-- Like, comment, share, follow creators
+You open the app and immediately start watching videos. You didn't follow anyone, you didn't search for anything — it just knows what you want. I want you to design the system behind that, from video upload to what shows up on your "For You" page.
 
-**Non-functional requirements:**
-- 1B daily active users
-- Videos must start playing within 1 second of scroll
-- The recommendation algorithm is a core differentiator
-
-**Discuss:** video transcoding pipeline, CDN pre-positioning for predicted viral content, recommendation system architecture (two-tower model, candidate retrieval + ranking), real-time engagement signals feeding the ranker, and geographic content moderation.`,
+Ask me whatever you need before you start.`,
   },
 
   // ─── Communication ────────────────────────────────────────────────────────
@@ -206,37 +148,22 @@ What questions do you have for me?`,
     title: 'Design a Notification System',
     category: 'Communication',
     difficulty: 'Medium',
-    prompt: `Design a large-scale notification delivery system supporting push, email, and SMS.
+    prompt: `Let's design a notification system — the kind that powers "Your order shipped" push notifications, emails, and texts across a large platform.
 
-**Functional requirements:**
-- Send notifications triggered by system events (new message, order shipped, etc.)
-- Channels: push notification (iOS/Android), email, SMS
-- User preference management (which channels to use, do-not-disturb)
+Something happens in the system and users need to hear about it, across multiple channels. Think about what makes that hard.
 
-**Non-functional requirements:**
-- 10M notifications per day across all channels
-- Soft real-time: push notifications within 5 seconds
-- Reliable delivery — at-least-once semantics
-
-**Discuss:** event-driven architecture (producers → message queue → workers per channel), retry/dead-letter queue strategy, rate limiting to avoid flagging as spam, third-party provider integration (APNs, FCM, SendGrid, Twilio), and user preference enforcement.`,
+What do you want to clarify before diving in?`,
   },
   {
     id: 'iq-live-comments',
     title: 'Design a Live Comment / Chat System',
     category: 'Communication',
     difficulty: 'Medium',
-    prompt: `Design a live comment system for a streaming platform (like YouTube Live or Twitch chat).
+    prompt: `Let's design live chat for a streaming platform — like Twitch chat or YouTube Live comments.
 
-**Functional requirements:**
-- Users post comments in real-time during a live stream
-- All viewers see new comments within 1-2 seconds
-- Moderation: flag and remove comments
+While a stream is happening, thousands of viewers are posting comments and everyone sees them in near real-time. Think about what that system looks like and what breaks under pressure.
 
-**Non-functional requirements:**
-- Popular streams: 1M concurrent viewers, 10,000 messages per second
-- System must scale up instantly when a stream goes viral
-
-**Discuss:** WebSocket vs. SSE for message delivery, pub/sub fan-out at scale, sharding by stream ID, comment storage, rate limiting per user, moderation pipeline, and how you handle sudden traffic spikes.`,
+What questions do you have before you start?`,
   },
 
   // ─── Infrastructure ────────────────────────────────────────────────────────
@@ -245,19 +172,11 @@ What questions do you have for me?`,
     title: 'Design a Rate Limiter',
     category: 'Infrastructure',
     difficulty: 'Easy',
-    prompt: `Design a distributed rate limiting system for an API gateway.
+    prompt: `Let's design a rate limiter for an API gateway.
 
-**Functional requirements:**
-- Limit each client (by API key or IP) to N requests per time window
-- Return HTTP 429 with a Retry-After header when the limit is exceeded
-- Support multiple rate limit tiers (free: 100/min, pro: 10,000/min)
+The goal is to prevent any single client from hammering the API too hard. Sounds simple, but doing it correctly across a fleet of servers has some interesting challenges.
 
-**Non-functional requirements:**
-- Must work across multiple API gateway nodes (not just in-process)
-- Low latency overhead: < 5ms per check
-- Approximate accuracy is acceptable (1-5% error margin)
-
-**Discuss:** token bucket vs. sliding window log vs. fixed window algorithms, using Redis for shared counters, the sliding window approximation trick, and how to handle Redis failures gracefully.`,
+Ask me what you need to know before you start.`,
   },
   {
     id: 'iq-web-crawler',
@@ -275,59 +194,33 @@ Feel free to ask me clarifying questions first.`,
     title: 'Design an API Gateway',
     category: 'Infrastructure',
     difficulty: 'Easy',
-    prompt: `Design an API gateway that sits between clients and a fleet of microservices.
+    prompt: `Let's design an API gateway — the single entry point that sits between your clients and your backend microservices.
 
-**Functional requirements:**
-- Route requests to the correct backend service
-- Authenticate and authorize requests (JWT validation)
-- Rate limit per client
-- Aggregate responses from multiple services for a single client request
+Every request from every client flows through it. Think about what responsibilities that creates and what can go wrong.
 
-**Non-functional requirements:**
-- < 10ms added latency
-- 99.99% availability
-- Handles 500K requests per second
-
-**Discuss:** how the gateway routes requests (path-based, header-based), SSL termination, authentication flow, fan-out aggregation (request fan-out + merge), circuit breaking for downstream services, and how to handle versioning (v1/v2 of services).`,
+What do you want to know before you start?`,
   },
   {
     id: 'iq-cdn',
     title: 'Design a Content Delivery Network (CDN)',
     category: 'Infrastructure',
     difficulty: 'Hard',
-    prompt: `Design a global CDN that serves static and dynamic content with low latency worldwide.
+    prompt: `Let's design a CDN.
 
-**Functional requirements:**
-- Cache static assets (images, JS, CSS, video) at edge nodes near users
-- Route users to the nearest available edge node
-- Support cache invalidation
-- Handle both pull (on-demand caching) and push (pre-warmed) content
+The idea is to serve content — images, videos, JS files — fast to users all over the world, without every request having to go back to the origin server. Think about what that requires and what the hard parts are.
 
-**Non-functional requirements:**
-- 100Tbps peak global traffic
-- Cache hit rate ≥ 95% for static content
-- Serve content in < 50ms from edge to user
-
-**Discuss:** anycast routing for edge selection, how pull vs. push CDNs populate edges, cache eviction and TTL, origin shield (a mid-tier cache), cache invalidation propagation, and how to handle uncacheable (personalized) requests.`,
+Ask me anything you need before you dive in.`,
   },
   {
     id: 'iq-monitoring',
     title: 'Design a Metrics & Monitoring System',
     category: 'Infrastructure',
     difficulty: 'Medium',
-    prompt: `Design a metrics collection and alerting system like Datadog or Prometheus.
+    prompt: `Let's design a metrics and monitoring system — something like Datadog or Prometheus.
 
-**Functional requirements:**
-- Services report metrics (counters, gauges, histograms) every 10 seconds
-- Query metrics with time-range filters and aggregations (sum, avg, p99)
-- Define alert rules that trigger PagerDuty when a threshold is crossed
+Services emit metrics constantly, and engineers need to be able to query that data and get paged when something looks wrong. Think about what that system needs to handle.
 
-**Non-functional requirements:**
-- 1M metrics per second ingestion
-- Queries must return within 2 seconds
-- Data retention: full resolution for 15 days, rolled-up for 1 year
-
-**Discuss:** push vs. pull collection model, time-series database (TSDB) design (why columnar storage and compression matter), down-sampling for long-term storage, alerting evaluation loop, and dashboard query path.`,
+What questions do you have before you start?`,
   },
 
   // ─── Search & Discovery ───────────────────────────────────────────────────
@@ -336,57 +229,33 @@ Feel free to ask me clarifying questions first.`,
     title: 'Design a Typeahead / Autocomplete System',
     category: 'Search & Discovery',
     difficulty: 'Medium',
-    prompt: `Design a search autocomplete feature that suggests queries as a user types (like Google Search suggestions).
+    prompt: `Let's design a search autocomplete system — like the suggestions that appear when you start typing into Google Search.
 
-**Functional requirements:**
-- Return top 10 suggestions for any prefix within 100ms
-- Suggestions are ranked by search frequency
-- Update suggestions with new search trends in near real-time
+As you type, it needs to show relevant suggestions instantly. That sounds easy until you think about the scale and the latency requirements.
 
-**Non-functional requirements:**
-- 10M QPS at peak
-- Latency: p99 < 100ms including network
-- 5 billion unique search queries in the index
-
-**Discuss:** trie vs. inverted index for prefix lookup, how to pre-compute and cache top-K suggestions per prefix, distributed trie sharded by prefix, aggregating search frequency in a streaming pipeline, and how the client reduces API calls (debounce, only fire after N chars).`,
+What do you want to clarify before you start?`,
   },
   {
     id: 'iq-search-engine',
     title: 'Design a Search Engine',
     category: 'Search & Discovery',
     difficulty: 'Hard',
-    prompt: `Design a web-scale search engine (like Google Search).
+    prompt: `Let's design a web-scale search engine — think Google Search.
 
-**Functional requirements:**
-- Index web pages and return the most relevant results for a query
-- Results must include title, snippet, and URL
-- Support advanced operators (site:, filetype:, etc.)
+Someone types a query and in under a second they get back the most relevant pages from across the entire internet. I want you to design the system that makes that possible.
 
-**Non-functional requirements:**
-- Index of 10 billion pages
-- Query latency < 500ms globally
-- Freshness: breaking news should appear in results within minutes
-
-**Discuss:** the crawling pipeline, inverted index construction (how you map terms → document list with positions), ranking (TF-IDF, PageRank, ML ranking), query processing (tokenization, query expansion, spell correction), the serving stack (query → multiple retrieval shards → merge → rank → serve), and index freshness via real-time indexing for important content.`,
+Feel free to ask me anything before you start.`,
   },
   {
     id: 'iq-recommendation',
     title: 'Design a Recommendation System',
     category: 'Search & Discovery',
     difficulty: 'Hard',
-    prompt: `Design a product recommendation system (like Amazon's "Customers also bought" or Netflix's "Top Picks").
+    prompt: `Let's design a recommendation system — like Amazon's "Customers also bought" or Netflix's personalized homepage.
 
-**Functional requirements:**
-- Show personalized recommendations on the homepage and product/content pages
-- Recommendations based on: past behavior, similar users, similar items
-- Near-real-time: recent interactions (last click) should influence results
+The system needs to figure out what content or products a user is likely to want, without them asking for it explicitly. Think about what data you'd use and how you'd build it.
 
-**Non-functional requirements:**
-- 300M users, 10M items
-- Recommendations must load in < 200ms
-- System should improve as more interaction data is collected
-
-**Discuss:** collaborative filtering vs. content-based filtering vs. hybrid, offline training pipeline (batch embeddings), candidate retrieval via ANN search (FAISS, ScaNN), re-ranking with a lightweight online model, real-time feature updates, and A/B testing framework for experimenting on the ranking model.`,
+What do you want to know before you start?`,
   },
 
   // ─── Maps & Location ─────────────────────────────────────────────────────
@@ -406,38 +275,22 @@ Ask me what you need to know before you start.`,
     title: 'Design Google Maps',
     category: 'Maps & Location',
     difficulty: 'Hard',
-    prompt: `Design a mapping and navigation service like Google Maps.
+    prompt: `Let's design Google Maps.
 
-**Functional requirements:**
-- Display a map with roads, buildings, and points of interest
-- Compute fastest driving route from A to B
-- Real-time traffic updates affecting route ETA
+You open it, you see a map of the world, you ask for directions, and it routes you around traffic in real time. Think about what it takes to build that at a global scale.
 
-**Non-functional requirements:**
-- 1B users
-- Map tiles must render in < 200ms
-- Route computation in < 2 seconds
-
-**Discuss:** how map tiles are pre-rendered at different zoom levels and served via CDN, graph representation of road network, shortest path algorithms (Dijkstra, A*, contraction hierarchies for large graphs), incorporating real-time traffic data into edge weights, and how to handle map updates (new roads, closures).`,
+What do you want to clarify before you start?`,
   },
   {
     id: 'iq-nearby',
     title: 'Design a Proximity / Nearby Search Service',
     category: 'Maps & Location',
     difficulty: 'Medium',
-    prompt: `Design a "find nearby" service — like Yelp's nearby restaurant search or finding nearby drivers.
+    prompt: `Let's design a "find nearby" service — like Yelp's nearby restaurant search, or the part of Uber that finds drivers close to you.
 
-**Functional requirements:**
-- Given a user's location, return K closest points of interest (restaurants, drivers, ATMs) within radius R
-- Filter by category
-- Results sorted by distance
+Given a user's location, the system needs to return relevant nearby results fast. Think about what makes that technically interesting.
 
-**Non-functional requirements:**
-- 100M places in the database
-- 1M QPS at peak
-- < 100ms latency
-
-**Discuss:** geohashing (how encoding lat/lng to a string enables prefix-based range queries), alternatives like quadtrees and S2 cells, database indexing strategies for geospatial queries (PostGIS, geohash index), handling the edge case where a geohash cell boundary splits nearby places, and caching strategies for static data (places don't move).`,
+Ask me anything before you dive in.`,
   },
 
   // ─── E-Commerce & Finance ─────────────────────────────────────────────────
@@ -446,59 +299,33 @@ Ask me what you need to know before you start.`,
     title: 'Design a Payment System',
     category: 'E-Commerce & Finance',
     difficulty: 'Hard',
-    prompt: `Design a payment processing system like Stripe or PayPal.
+    prompt: `Let's design a payment processing system — think Stripe or PayPal.
 
-**Functional requirements:**
-- Users can initiate a payment from wallet A to wallet B
-- Support idempotent retries — no double charges
-- Payment confirmation within 3 seconds
-- Transaction history
+Money is moving between accounts. That's simple to say and hard to build — failures, retries, and partial states all have real consequences. How would you design this?
 
-**Non-functional requirements:**
-- 1M transactions per day
-- Exactly-once semantics — money must never be created or destroyed
-- Strict compliance requirements (PCI DSS)
-
-**Discuss:** idempotency key implementation to prevent duplicate charges, the ledger data model (double-entry bookkeeping), two-phase commit or Saga for distributed transactions across multiple banks/services, reconciliation jobs to detect discrepancies, fraud detection hooks, and how to handle partial failures (payment sent but confirmation lost).`,
+What questions do you have before you start?`,
   },
   {
     id: 'iq-ecommerce',
     title: 'Design an E-Commerce Platform',
     category: 'E-Commerce & Finance',
     difficulty: 'Medium',
-    prompt: `Design an online marketplace like Amazon.
+    prompt: `Let's design an online marketplace — think Amazon.
 
-**Functional requirements:**
-- Browse and search for products
-- Add to cart and checkout
-- Order tracking
-- Inventory management to prevent overselling
+Users browse products, add things to a cart, and check out. Sellers manage inventory. Think about what the core system looks like and where the hard problems are.
 
-**Non-functional requirements:**
-- 50M products, 100M users
-- Flash sales: 10× normal traffic for 5 minutes
-- Inventory must be accurate — no overselling allowed
-
-**Discuss:** product catalog service, the checkout flow and inventory reservation (optimistic locking vs. pessimistic locking), flash sale handling (queue-based checkout, pre-warming cache), order state machine, payment integration, and how search is separated from the product catalog for performance.`,
+What do you want to know before you start?`,
   },
   {
     id: 'iq-hotel-booking',
     title: 'Design a Hotel Booking System',
     category: 'E-Commerce & Finance',
     difficulty: 'Medium',
-    prompt: `Design a hotel room reservation system like Booking.com or Airbnb.
+    prompt: `Let's design a hotel booking system — like Booking.com or Airbnb.
 
-**Functional requirements:**
-- Search available rooms by location, dates, and price range
-- Reserve a room for specific dates (no double booking)
-- Cancel a reservation
+You search for a place to stay, pick a room, and reserve it for your dates. Sounds straightforward until you think about what happens when two people try to book the same room at the same time.
 
-**Non-functional requirements:**
-- 5M hotels, 100M bookings per year
-- No double booking — two users can't book the same room for overlapping dates
-- Searches must return results in < 1 second
-
-**Discuss:** the availability data model (how to efficiently query "is room X available from date A to B"), locking strategy to prevent double booking (optimistic locking with version fields vs. SELECT FOR UPDATE), caching availability for read-heavy search, and the booking state machine (pending → confirmed → cancelled).`,
+Ask me whatever you need before you start.`,
   },
   {
     id: 'iq-ad-click',
@@ -516,22 +343,12 @@ What do you want to clarify before diving in?`,
     title: 'Design a Stock Trading Platform',
     category: 'E-Commerce & Finance',
     difficulty: 'Hard',
-    prompt: `Design an online stock trading platform like Robinhood.
+    prompt: `Let's design an online stock trading platform — like Robinhood.
 
-**Functional requirements:**
-- Users can place market and limit orders to buy/sell stocks
-- View real-time stock prices and portfolio value
-- Order matching engine: match buy and sell orders at the same price
+Users can place orders to buy and sell stocks, see real-time prices, and track their portfolio. Think about what makes this system different from a typical CRUD app.
 
-**Non-functional requirements:**
-- Real-time price updates (< 100ms latency)
-- Order matching must guarantee FIFO and be atomic
-- 10M users, peak 1M orders per second during market open
-
-**Discuss:** the order book data structure (price-time priority queue), the matching engine as a single-threaded sequential processor (why this is intentional), market data distribution via pub/sub, portfolio valuation as a separate read path, risk checks before order submission, and regulatory audit logging.`,
+What questions do you have before you start?`,
   },
-
-  // ─── E-Commerce & Finance (continued) ────────────────────────────────────
   {
     id: 'iq-ticketmaster',
     title: 'Design Ticketmaster',
