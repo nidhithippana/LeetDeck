@@ -3,7 +3,7 @@ import { ArrowUpRight, Circle, Eraser, MousePointer2, Pencil, RotateCw, Square, 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type WhiteboardHandle = { getImageDataUrl: () => string; isEmpty: () => boolean };
+export type WhiteboardHandle = { getImageDataUrl: () => string; isEmpty: () => boolean; clear: () => void };
 type Props = { storageKey?: string };
 
 type TextElement   = { id: string; type: 'text';   x: number; y: number; width: number; height: number; value: string; fontSize: number; color: string; rotation: number };
@@ -183,7 +183,11 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   // Delete key removes selected shape; Cmd/Ctrl+Z undoes
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undo(); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        const tag = (document.activeElement?.tagName ?? '').toLowerCase();
+        if (tag === 'textarea' || tag === 'input') return;
+        e.preventDefault(); undo(); return;
+      }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && !activeTextId) {
         const tag = document.activeElement?.tagName;
         if (tag === 'TEXTAREA' || tag === 'INPUT') return;
@@ -577,6 +581,13 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
 
   useImperativeHandle(ref, () => ({
     isEmpty: () => !hasContent && elements.every(e => e.type !== 'text' || !(e as TextElement).value.trim()),
+    clear: () => {
+      historyRef.current = [];
+      const c = canvasRef.current; if (!c) return;
+      const ctx = c.getContext('2d')!; ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,c.width,c.height);
+      setHasContent(false); setElements([]); setActiveTextId(null); setSelectedId(null); setSelection(null);
+      if (storageKey) { localStorage.removeItem(storageKey+'.pen'); localStorage.removeItem(storageKey+'.elements'); }
+    },
     getImageDataUrl: () => {
       const c = canvasRef.current; if (!c) return '';
       const off = document.createElement('canvas'); off.width=c.width; off.height=c.height;
