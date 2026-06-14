@@ -117,8 +117,11 @@ export function buildDailyQueue(args: {
     ...reviewCards.map((p) => p.id),
   ]);
 
+  // Only fill remaining slots up to the user's reviewPerDay limit
+  const bonusSlots = Math.min(2, Math.max(0, remainingReview - reviewCards.length));
+
   const bonusReviews =
-    topicFilter && !filterHasNew
+    topicFilter && !filterHasNew || bonusSlots === 0
       ? []
       : PROBLEMS.filter((p) => {
           const c = cards[p.id];
@@ -136,7 +139,7 @@ export function buildDailyQueue(args: {
             const db = cards[b.id]?.dueDate ?? '9999-99-99';
             return da.localeCompare(db);
           })
-          .slice(0, 2);
+          .slice(0, bonusSlots);
 
   return {
     newCards,
