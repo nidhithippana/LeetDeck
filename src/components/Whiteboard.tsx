@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { ArrowUpRight, Circle, Eraser, MousePointer2, Pencil, RotateCw, Square, Trash2, Type } from 'lucide-react';
+import { ArrowUpRight, Circle, Eraser, MousePointer2, Pencil, RotateCw, Square, Trash2, Type, Undo2 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,6 +82,9 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   const shapeDragRef = useRef<{x:number;y:number}|null>(null);
   const selStart     = useRef<{x:number;y:number}|null>(null);
 
+  const elementsRef  = useRef<BoardElement[]>(elements);
+  const historyRef   = useRef<{ elements: BoardElement[]; penDataUrl: string }[]>([]);
+
   // ─── Init + load ───────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -115,10 +118,44 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     }
   }, [storageKey]);
 
+  useEffect(() => { elementsRef.current = elements; }, [elements]);
+
   useEffect(() => {
     if (!storageKey) return;
     localStorage.setItem(storageKey + '.elements', JSON.stringify(elements));
   }, [storageKey, elements]);
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
+  const savePen = () => {
+    if (storageKey && canvasRef.current)
+      localStorage.setItem(storageKey + '.pen', canvasRef.current.toDataURL('image/png'));
+  };
+
+  // ─── Undo ──────────────────────────────────────────────────────────────────
+
+  const pushHistory = () => {
+    const c = canvasRef.current; if (!c) return;
+    const snapshot = { elements: [...elementsRef.current], penDataUrl: c.toDataURL('image/png') };
+    historyRef.current.push(snapshot);
+    if (historyRef.current.length > 50) historyRef.current.shift();
+  };
+
+  const undo = useCallback(() => {
+    const snapshot = historyRef.current.pop();
+    if (!snapshot) return;
+    setElements(snapshot.elements);
+    const c = canvasRef.current; if (!c) return;
+    const ctx = c.getContext('2d')!;
+    const img = new Image();
+    img.onload = () => {
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0);
+      if (storageKey) savePen();
+    };
+    img.src = snapshot.penDataUrl;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
 
   // Deactivate text on outside click (only for clicks truly outside the whiteboard)
   useEffect(() => {
@@ -143,9 +180,10 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     return () => document.removeEventListener('mousedown', h);
   }, [selectedId]);
 
-  // Delete key removes selected shape
+  // Delete key removes selected shape; Cmd/Ctrl+Z undoes
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undo(); return; }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && !activeTextId) {
         const tag = document.activeElement?.tagName;
         if (tag === 'TEXTAREA' || tag === 'INPUT') return;
@@ -155,14 +193,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
     };
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
-  }, [selectedId, activeTextId]);
-
-  // ─── Helpers ───────────────────────────────────────────────────────────────
-
-  const savePen = () => {
-    if (storageKey && canvasRef.current)
-      localStorage.setItem(storageKey + '.pen', canvasRef.current.toDataURL('image/png'));
-  };
+  }, [selectedId, activeTextId, undo]);
 
   const cssToCanvas = useCallback((cssX: number, cssY: number) => {
     const c = canvasRef.current!; const r = c.getBoundingClientRect();
@@ -194,6 +225,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   const fontSizeFromWidth = (w: number) => Math.max(8, Math.round(w * 0.09));
 
   const createText = (cssX: number, cssY: number) => {
+    pushHistory();
     const id = newId();
     const widthForSize: Record<number, number> = { 2: 140, 5: 200, 11: 300 };
     const width = widthForSize[size] ?? 200;
@@ -210,6 +242,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   const startTextDrag = (e: React.MouseEvent, id: string) => {
     if ((e.target as HTMLElement).tagName === 'TEXTAREA') return;
     e.preventDefault();
+    pushHistory();
     const el = elements.find(t => t.id === id) as TextElement;
     const { x: ox, y: oy } = el; const mx0 = e.clientX, my0 = e.clientY;
     const { W, H } = getBounds();
@@ -227,6 +260,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
 
   const startWidthResize = (e: React.MouseEvent, id: string, side: 'w' | 'e') => {
     e.preventDefault(); e.stopPropagation();
+    pushHistory();
     const el = elements.find(t => t.id === id) as TextElement;
     const { x: ox, width: ow } = el;
     const mx0 = e.clientX;
@@ -248,6 +282,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
 
   const startTextRotate = (e: React.MouseEvent, id: string) => {
     e.preventDefault(); e.stopPropagation();
+    pushHistory();
     const el = elements.find(t => t.id === id) as TextElement;
     const rect = canvasRef.current!.getBoundingClientRect();
     const cx = rect.left + el.x + el.width / 2;
@@ -282,6 +317,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   };
 
   const finalizeShape = (start: {x:number;y:number}, end: {x:number;y:number}) => {
+    pushHistory();
     clearOverlay();
     const minW = 5, minH = 5;
     const id = newId();
@@ -301,6 +337,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
 
   const startShapeDrag = (e: React.MouseEvent, id: string) => {
     e.preventDefault(); e.stopPropagation();
+    pushHistory();
     setSelectedId(id);
     const el = elements.find(t => t.id === id)!;
     const mx0 = e.clientX, my0 = e.clientY;
@@ -329,6 +366,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
 
   const startCornerResize = (e: React.MouseEvent, id: string, corner: CornerHandle) => {
     e.preventDefault(); e.stopPropagation();
+    pushHistory();
     const el = elements.find(t => t.id === id) as RectElement | CircleElement;
     const { x:ox, y:oy, width:ow, height:oh } = el;
     const mx0 = e.clientX, my0 = e.clientY;
@@ -351,6 +389,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
 
   const startArrowEndpointDrag = (e: React.MouseEvent, id: string, endpoint: 'start' | 'end') => {
     e.preventDefault(); e.stopPropagation();
+    pushHistory();
     const mx0 = e.clientX, my0 = e.clientY;
     const el = elements.find(t => t.id === id) as ArrowElement;
     const snap = { x: el.x, y: el.y, x2: el.x2, y2: el.y2 };
@@ -369,6 +408,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   };
 
   const deleteElement = (id: string) => {
+    pushHistory();
     setElements(prev => prev.filter(el => el.id !== id));
     if (selectedId === id) setSelectedId(null);
     if (activeTextId === id) setActiveTextId(null);
@@ -377,6 +417,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   // ─── Pen ───────────────────────────────────────────────────────────────────
 
   const penStart = (cssX: number, cssY: number) => {
+    pushHistory();
     drawing.current = true; lastPos.current = cssToCanvas(cssX, cssY);
     const ctx = canvasRef.current!.getContext('2d')!;
     const s = tool === 'eraser' ? size * 4 : size;
@@ -487,9 +528,10 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   const handleContainerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     // Ignore clicks that already handled by shape/text element handlers
     if ((e.target as HTMLElement).closest('[data-shape-el],[data-text-el]')) return;
+    deactivateText();
     const css = getRelativePos(e);
     if (selection?.phase === 'placed') { commitSelection(); return; }
-    if (tool === 'text')   { deactivateText(); createText(css.x, css.y); return; }
+    if (tool === 'text')   { createText(css.x, css.y); return; }
     if (tool === 'select') { selStart.current = css; setSelection({ phase:'drawing', sx:css.x, sy:css.y, ex:css.x, ey:css.y }); return; }
     if (tool === 'rect' || tool === 'circle' || tool === 'arrow') { shapeDragRef.current = css; return; }
     penStart(css.x, css.y);
@@ -523,6 +565,7 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
   // ─── Clear ─────────────────────────────────────────────────────────────────
 
   const handleClearConfirmed = () => {
+    pushHistory();
     const c = canvasRef.current; if (!c) return;
     const ctx = c.getContext('2d')!; ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,c.width,c.height);
     setHasContent(false); setElements([]); setActiveTextId(null); setSelectedId(null); setSelection(null);
@@ -627,6 +670,10 @@ const Whiteboard = forwardRef<WhiteboardHandle, Props>(function Whiteboard({ sto
         {tool === 'select' && <span className="text-[11px] text-slate-400">Click shape to select · drag handles to resize · Delete to remove</span>}
 
         <div className="flex-1" />
+        <button onClick={undo} title="Undo (⌘Z)"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700">
+          <Undo2 size={12} /> Undo
+        </button>
         <button onClick={() => setConfirmClear(true)}
           className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-600 transition hover:bg-rose-50 hover:text-rose-600 dark:text-slate-300 dark:hover:bg-rose-950/30 dark:hover:text-rose-400">
           <Trash2 size={12} /> Clear
