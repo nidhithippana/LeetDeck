@@ -3,6 +3,7 @@ import type { CardState, Rating } from '../types';
 import { applyRating, isDue, newCard, todayISO } from './sm2';
 import { SD_CARDS, SD_TOPICS } from '../data/systemDesign';
 import { loadSdCards, upsertCard } from './storage';
+import { supabase } from '../lib/supabase';
 
 const CARDS_KEY = 'leetdeck.sd.cards';
 const SESSION_KEY = 'leetdeck.sd.session';
@@ -86,18 +87,32 @@ export function useSdSrs(): SdSrsState {
 
   const today = todayISO();
 
-  // Sync from Supabase on mount — overwrites localStorage so all devices see the same state
+  // Sync from Supabase — overwrites localStorage so all devices see the same state.
+  // Called both on mount and whenever auth state changes (handles delayed session
+  // init on a fresh device where getUser() isn't ready at first render).
   useEffect(() => {
-    loadSdCards()
-      .then((remote) => {
-        if (Object.keys(remote).length === 0) return;
-        setCards((local) => {
-          const merged = { ...local, ...remote };
-          saveCards(merged);
-          return merged;
+    const sync = () => {
+      loadSdCards()
+        .then((remote) => {
+          if (Object.keys(remote).length === 0) return;
+          setCards((local) => {
+            const merged = { ...local, ...remote };
+            saveCards(merged);
+            return merged;
+          });
+        })
+        .catch((err: unknown) => {
+          console.error('[SD SRS] Supabase sync failed:', err);
         });
-      })
-      .catch(() => { /* not signed in or offline — stay with localStorage */ });
+    };
+
+    sync();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') sync();
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const matureCount = useMemo(
@@ -190,7 +205,9 @@ export function useSdSrs(): SdSrsState {
       });
 
       // Persist to Supabase so progress syncs across devices
-      upsertCard(updated).catch(() => { /* offline — localStorage already updated */ });
+      upsertCard(updated).catch((err: unknown) => {
+        console.error('[SD SRS] upsertCard failed:', err);
+      });
 
       setSession((prev) => {
         const reviewed = prev.reviewed.includes(cardId)
