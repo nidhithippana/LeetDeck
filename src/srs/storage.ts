@@ -161,6 +161,21 @@ export async function loadAllCards(): Promise<Record<string, CardState>> {
   return out;
 }
 
+export async function loadSdCards(): Promise<Record<string, CardState>> {
+  const userId = await requireUserId();
+  const { data, error } = await supabase
+    .from('cards')
+    .select('*')
+    .eq('user_id', userId)
+    .like('problem_id', 'sd-%');
+  if (error) throw error;
+  const out: Record<string, CardState> = {};
+  for (const row of (data as CardRow[]) ?? []) {
+    out[row.problem_id] = rowToCard(row);
+  }
+  return out;
+}
+
 export async function upsertCard(card: CardState): Promise<void> {
   const userId = await requireUserId();
   const row: CardRow & { updated_at: string } = {

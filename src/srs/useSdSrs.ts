@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CardState, Rating } from '../types';
 import { applyRating, isDue, newCard, todayISO } from './sm2';
 import { SD_CARDS, SD_TOPICS } from '../data/systemDesign';
+import { loadSdCards, upsertCard } from './storage';
 
 const CARDS_KEY = 'leetdeck.sd.cards';
 const SESSION_KEY = 'leetdeck.sd.session';
@@ -84,6 +85,20 @@ export function useSdSrs(): SdSrsState {
   const [dailyNewLimit, setDailyNewLimitState] = useState<number>(() => loadDailyNewPref());
 
   const today = todayISO();
+
+  // Sync from Supabase on mount — overwrites localStorage so all devices see the same state
+  useEffect(() => {
+    loadSdCards()
+      .then((remote) => {
+        if (Object.keys(remote).length === 0) return;
+        setCards((local) => {
+          const merged = { ...local, ...remote };
+          saveCards(merged);
+          return merged;
+        });
+      })
+      .catch(() => { /* not signed in or offline — stay with localStorage */ });
+  }, []);
 
   const matureCount = useMemo(
     () => Object.values(cards).filter((c) => c.intervalDays >= 21).length,
@@ -173,6 +188,9 @@ export function useSdSrs(): SdSrsState {
         saveCards(next);
         return next;
       });
+
+      // Persist to Supabase so progress syncs across devices
+      upsertCard(updated).catch(() => { /* offline — localStorage already updated */ });
 
       setSession((prev) => {
         const reviewed = prev.reviewed.includes(cardId)
